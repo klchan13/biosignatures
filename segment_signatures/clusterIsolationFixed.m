@@ -23,7 +23,7 @@ minPix = 15; % Minimum pixel amount to be considered a signature
 % linearData - 10 elemental data sets in a 10 by xLength*yLength matrix.
 fprintf('\rOpening file\r')
 tic
-[xLength, yLength, cubeData, linearData, pathName, fileName]= openDATclean([]);
+[xLength, yLength, cubeData_alt, cubeData_orig, linearData_alt, linearData_orig, pathName, fileName]= openDATclean([]);
 
 % LINEAR TO XY - Change from linear to x,y coordinates
 function [picCluster] = linear2xy(tempBlank,xLength,yLength)
@@ -44,7 +44,7 @@ for j = xLength*yLength:-1:1
 end
 end
 
-linTrackingMatrix = dataIsolation(xLength,yLength,linearData);
+linTrackingMatrix = dataIsolation(xLength,yLength,linearData_alt);
 
 % SIGNATURE CLASSIFICATION - Bin data into different signature lists.
 function [sigList] = sigClassify(xLength,yLength,linTrackingMatrix)
@@ -56,11 +56,11 @@ sigArray = [];   % Initialize sig indices array
 for n = 1:xLength*yLength
     fprintf('\rDetermining signature of pixel %d of %d.\r',[n xLength*yLength]), toc
     if linTrackingMatrix(n) == 0     % Continue if not background
-        curSig = linearData(:,n);
+        curSig = linearData_alt(:,n);
         sigArray = [sigArray, n];     % Add the first pixel to array
         track = track + 1;       % Signature number
         for next = (n+1):length(linTrackingMatrix) % Go through remaining pixels
-            laterSig = linearData(:,next);
+            laterSig = linearData_alt(:,next);
             p = dot(curSig, laterSig)/(sqrt(sum(curSig.^2))*sqrt(sum(laterSig.^2)));
             if linTrackingMatrix(next) == 0 && p >correlationThresh  % Bin pixel into list if correlated
                 sigArray = [sigArray next];
@@ -216,86 +216,87 @@ end
 
 % DISPLAY SPECTRA AND CLUSTERS OF SIGNATURE - Displays the spectra and 
 % individual clusters of selected signature.
-% function [] = spectraClust(cursorInfo, cursTrack, xLength, yLength, sigIm, sigList,allSig)
-% [xLength, yLength, cubeData, linearData]= openDAT([]);
-% sigPos = cursorInfo(cursTrack).Position;  % Column, row
-% selectedSig = sigIm(sigPos(2),sigPos(1));
-% 
-% % Clusters of selected signature
-% [row, col] = find(linear2xy(allSig{selectedSig},xLength,yLength));
-% sigIndices = [sigList{selectedSig}; row'; col'];
-% curClustList = clustSeparation(sigList,selectedSig,sigIndices);
-% finPicClustDisp = dispClust(yLength,xLength,curClustList,sigIndices); % Clusters within sig
-% 
-% % Plot clusters of selected signature
-% subplot(6,19,[7:12 26:31 45:50 64:69 83:88 102:107]);
-% imagesc(finPicClustDisp)
-% set(gca,'XTick',[],'YTick',[])
-% title(sprintf('Clusters of Signature %s',num2str(selectedSig)),'fontsize',14,'fontweight','b')
-% 
-% % Average spectra of selected signature
-% spectra = linearData(:,find(allSig{selectedSig}));
-% spectraSz = size(spectra);
-% spectraSzTransposed = size(spectra');
-% subplot(6,19,[14:19 33:38 52:57 71:76 90:95 109:114]);
-% sigMean = mean(spectra')
-% sigStd = std(spectra')
-% count = spectraSzTransposed(1)
-% 
-% % Write spectra into excel file.
-% % [fileNamexl, pathNamexl] = uigetfile('*.xlsx','Select the excel spreadsheet you would like to write into.');
-% % excelFile = [pathNamexl,fileNamexl];
-% % xlswrite(excelFile,spectra')
-% 
-% % Display spectra.
-% errorbar(mean(spectra'),std(spectra'),'--k','LineWidth',2)
-% title('Average Spectra','fontsize',14,'fontweight','b')
-% ylabel('Pixel Intensity','fontsize',12,'fontweight','b')
-% set(gca, 'XTick',1:spectraSz(1), 'XTickLabel',{'Fe' 'Cu' 'Zn' 'Ca' 'K' 'S' 'P' 'Cl' 'Si' 'Mn'})
-% xlabel('Element','fontsize',12,'fontweight','b')
-% hold on
-% 
-% % Average spectra of selected cluster
-% selectedClust = finPicClustDisp(sigPos(2),sigPos(1)); % Selected cluster
-% [clustRow, clustCol] = find(finPicClustDisp == selectedClust);
-% tempArray = [];
-% spectraClust = [];
-% for bin1 = 1:length(clustRow)
-%     for eleNum = 1:10;
-%         tempArray = [tempArray; cubeData(clustRow(bin1),clustCol(bin1),eleNum)];
-%     end
-%     spectraClust = [spectraClust tempArray];
-%     tempArray = [];
-% end
-% spectraSzClust = size(spectraClust);
-% if spectraSzClust > 1
-%     errorbar(mean(spectraClust'),std(spectraClust'),'r','LineWidth',2)
-% else
-%     plot(spectraClust,'r','LineWidth',2)
-% end
-% title(sprintf('Average Spectra of Cluster %d of Signature %d',[(selectedClust) (selectedSig)]),'fontsize',14,'fontweight','b')
-% ylabel('log(intensity)','fontsize',12,'fontweight','b')
-% set(gca, 'XTick',1:spectraSzClust(1), 'XTickLabel',{'Fe' 'Cu' 'Zn' 'Ca' 'K' 'S' 'P' 'Cl' 'Si' 'Mn'})
-% ylim([-1 6])
-% xlabel('Element','fontsize',12,'fontweight','b')
-% legend('Signature Average','Cluster Average','Location','NorthEast');
-% hold off
-% end
-% 
-% % Initialize interactive mode.
-% fprintf('\rInitializing interactive mode.\r')
-% toc
-% h = datacursormode(figHandle1);
-% datacursormode on
-% cursorInfo = [];
-% cursTrack = 0;
-% fprintf('\rClick on the image titled "Cluster Signatures" to select a signature\ror a cluster then press Return.  Dark blue is the background.\r')
-% while(1)
-%     pause   % Allow user time to select a point.  Press enter to execute
-%     cursorInfo = [cursorInfo, getCursorInfo(h)];
-%     cursTrack = cursTrack + 1;
-%     % Reassigning value to allSig because it keeps disappearing.
-%     [tempBlank, allSig] = assignClust(xLength,yLength,sigList);
-%     spectraClust(cursorInfo, cursTrack, xLength, yLength, sigIm, sigList,allSig)
-% end
+function [] = spectraClust(cursorInfo, cursTrack, xLength, yLength, sigIm, sigList,linearData_orig, allSig)
+sigPos = cursorInfo(cursTrack).Position;  % Column, row
+eleNum_all = size(linearData_orig);
+selectedSig = sigIm(sigPos(2),sigPos(1));
+
+% Clusters of selected signature
+[row, col] = find(linear2xy(allSig{selectedSig},xLength,yLength));
+sigIndices = [sigList{selectedSig}; row'; col'];
+curClustList = clustSeparation(sigList,selectedSig,sigIndices);
+finPicClustDisp = dispClust(yLength,xLength,curClustList,sigIndices); % Clusters within sig
+
+% Plot clusters of selected signature
+subplot(6,19,[7:12 26:31 45:50 64:69 83:88 102:107]);
+imagesc(finPicClustDisp)
+set(gca,'XTick',[],'YTick',[])
+title(sprintf('Clusters of Signature %s',num2str(selectedSig)),'fontsize',14,'fontweight','b')
+
+% Average spectra of selected signature
+spectra = linearData_orig(:,find(allSig{selectedSig}));
+spectraSz = size(spectra);
+%spectraSzTransposed = size(spectra');
+subplot(6,19,[14:19 33:38 52:57 71:76 90:95 109:114]);
+lower_range25 = median(spectra') - prctile(spectra', 25);
+upper_range75 = prctile(spectra', 75) - median(spectra');
+
+% Write spectra into excel file.
+% [fileNamexl, pathNamexl] = uigetfile('*.xlsx','Select the excel spreadsheet you would like to write into.');
+% excelFile = [pathNamexl,fileNamexl];
+% xlswrite(excelFile,spectra')
+
+% Display spectra.
+errorbar(1:eleNum_all(1), median(spectra'),lower_range25, upper_range75, '--k','LineWidth',2)
+title('Average Spectra','fontsize',14,'fontweight','b')
+ylabel('Pixel Intensity','fontsize',12,'fontweight','b')
+set(gca, 'XTick',1:spectraSz(1), 'XTickLabel',{'Fe' 'Cu' 'Zn' 'Ca' 'K' 'S' 'P' 'Cl' 'Si' 'Mn'})
+xlabel('Element','fontsize',12,'fontweight','b')
+hold on
+
+% Average spectra of selected cluster
+selectedClust = finPicClustDisp(sigPos(2),sigPos(1)); % Selected cluster
+[clustRow, clustCol] = find(finPicClustDisp == selectedClust);
+tempArray = [];
+spectraClust = [];
+for bin1 = 1:length(clustRow)
+    for eleNum = 1:10;
+        tempArray = [tempArray; cubeData_orig(clustRow(bin1),clustCol(bin1),eleNum)];
+    end
+    spectraClust = [spectraClust tempArray];
+    tempArray = [];
+end
+spectraSzClust = size(spectraClust);
+lower_range25_clust = median(spectraClust') - prctile(spectraClust', 25);
+upper_range75_clust = prctile(spectraClust', 75) - median(spectraClust');
+if spectraSzClust > 1
+    errorbar(1:eleNum_all(1), median(spectraClust'), lower_range25_clust, upper_range75_clust, 'r','LineWidth',2)
+else
+    plot(spectraClust,'r','LineWidth',2)
+end
+title(sprintf('Average Spectra of Cluster %d of Signature %d',[(selectedClust) (selectedSig)]),'fontsize',14,'fontweight','b')
+ylabel('Pixel Intensity','fontsize',12,'fontweight','b')
+set(gca, 'XTick',1:spectraSzClust(1), 'XTickLabel',{'Fe' 'Cu' 'Zn' 'Ca' 'K' 'S' 'P' 'Cl' 'Si' 'Mn'})
+ylim([0 max([prctile(spectraClust', 75), prctile(spectra', 75)])+1])
+xlabel('Element','fontsize',12,'fontweight','b')
+legend('Signature Average','Cluster Average','Location','NorthEast');
+hold off
+end
+
+% Initialize interactive mode.
+fprintf('\rInitializing interactive mode.\r')
+toc
+h = datacursormode(figHandle1);
+datacursormode on
+cursorInfo = [];
+cursTrack = 0;
+fprintf('\rClick on the image titled "Cluster Signatures" to select a signature\ror a cluster then press Return.  Dark blue is the background.\r')
+while(1)
+    pause   % Allow user time to select a point.  Press enter to execute
+    cursorInfo = [cursorInfo, getCursorInfo(h)];
+    cursTrack = cursTrack + 1;
+    % Reassigning value to allSig because it keeps disappearing.
+    [tempBlank, allSig] = assignClust(xLength,yLength,sigList);
+    spectraClust(cursorInfo, cursTrack, xLength, yLength, sigIm, sigList, linearData_orig, allSig)
+end
 end

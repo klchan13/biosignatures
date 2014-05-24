@@ -1,4 +1,4 @@
-function [allSig] = clusterIsolationFixed()
+function [allSig] = clusterIsolationFixed(mode)
 % Kimberly Chan
 % Last edited 4/13/13
 % Isolates clusters within synchrotron imaging data from a fixed image and
@@ -47,19 +47,32 @@ end
 linTrackingMatrix = dataIsolation(xLength,yLength,linearData_alt);
 
 % SIGNATURE CLASSIFICATION - Bin data into different signature lists.
-function [sigList] = sigClassify(xLength,yLength,linTrackingMatrix)
+function [sigList] = sigClassify(xLength,yLength,linTrackingMatrix, mode)
 fprintf('\rBinning data into different signature lists.\r')
 toc
 track = 0;   % Starting tracking cluster number
 sigArray = [];   % Initialize sig indices array
 
-for n = 1:xLength*yLength
+if strcmp(mode,'forwards')
+    n_arr = 1:xLength*yLength;
+elseif strcmp(mode, 'backwards')
+    n_arr = xLength*yLength:-1:1;
+end
+    
+for n = n_arr
     fprintf('\rDetermining signature of pixel %d of %d.\r',[n xLength*yLength]), toc
     if linTrackingMatrix(n) == 0     % Continue if not background
         curSig = linearData_alt(:,n);
         sigArray = [sigArray, n];     % Add the first pixel to array
         track = track + 1;       % Signature number
-        for next = (n+1):length(linTrackingMatrix) % Go through remaining pixels
+        
+        if strcmp(mode,'forwards')
+            next_arr = (n+1):length(linTrackingMatrix);
+        elseif strcmp(mode, 'backwards')
+            next_arr = n-1:-1:1;
+        end
+        
+        for next = next_arr % Go through remaining pixels
             laterSig = linearData_alt(:,next);
             p = dot(curSig, laterSig)/(sqrt(sum(curSig.^2))*sqrt(sum(laterSig.^2)));
             if linTrackingMatrix(next) == 0 && p >correlationThresh  % Bin pixel into list if correlated
@@ -86,7 +99,7 @@ end
 sigList = sigList3;
 end
 
-sigList = sigClassify(xLength,yLength,linTrackingMatrix);
+sigList = sigClassify(xLength,yLength,linTrackingMatrix,mode);
 
 % ASSIGNING CLUSTERS TO A SIGNATURE - Assigning clusters to different signatures
 function [tempBlank, allSig] = assignClust(xLength,yLength,sigList)

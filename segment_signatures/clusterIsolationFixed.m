@@ -75,7 +75,7 @@ for n = n_arr
         end
         
         for next = next_arr % Go through remaining pixels
-            if strcmp(mode,'median')
+            if strcmp(mode(1:6),'median')
                 cs_sze = size(sig_accumulate);
                 if cs_sze(2) == 1
                     curSig = sig_accumulate;
@@ -87,7 +87,7 @@ for n = n_arr
             p = dot(curSig, laterSig)/(sqrt(sum(curSig.^2))*sqrt(sum(laterSig.^2)));
             if linTrackingMatrix(next) == 0 && p >correlationThresh  % Bin pixel into list if correlated
                 sigArray = [sigArray next];
-                if strcmp(mode,'median')
+                if strcmp(mode(1:6),'median')
                     sig_accumulate = [sig_accumulate, linearData_alt(:,next)];
                 end
                 linTrackingMatrix(next) = 1; % Mark pixel as "used"

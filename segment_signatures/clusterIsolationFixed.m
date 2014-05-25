@@ -52,10 +52,11 @@ fprintf('\rBinning data into different signature lists.\r')
 toc
 track = 0;   % Starting tracking cluster number
 sigArray = [];   % Initialize sig indices array
+sig_accumulate = []; % Initialize the signatures accumulation array
 
-if strcmp(mode,'forwards')
+if strcmp(mode,'forwards') || strcmp(mode,'median_forwards')
     n_arr = 1:xLength*yLength;
-elseif strcmp(mode, 'backwards')
+elseif strcmp(mode, 'backwards') || strcmp(mode,'median_backwards')
     n_arr = xLength*yLength:-1:1;
 end
     
@@ -64,23 +65,36 @@ for n = n_arr
     if linTrackingMatrix(n) == 0     % Continue if not background
         curSig = linearData_alt(:,n);
         sigArray = [sigArray, n];     % Add the first pixel to array
+        sig_accumulate = [sig_accumulate, curSig];
         track = track + 1;       % Signature number
         
-        if strcmp(mode,'forwards')
+        if strcmp(mode,'forwards') || strcmp(mode,'median_forwards')
             next_arr = (n+1):length(linTrackingMatrix);
-        elseif strcmp(mode, 'backwards')
+        elseif strcmp(mode, 'backwards') || strcmp(mode,'median_backwards')
             next_arr = n-1:-1:1;
         end
         
         for next = next_arr % Go through remaining pixels
+            if strcmp(mode,'median')
+                cs_sze = size(sig_accumulate);
+                if cs_sze(2) == 1
+                    curSig = sig_accumulate;
+                else
+                    curSig = median(sig_accumulate')';                    
+                end
+            end
             laterSig = linearData_alt(:,next);
             p = dot(curSig, laterSig)/(sqrt(sum(curSig.^2))*sqrt(sum(laterSig.^2)));
             if linTrackingMatrix(next) == 0 && p >correlationThresh  % Bin pixel into list if correlated
                 sigArray = [sigArray next];
+                if strcmp(mode,'median')
+                    sig_accumulate = [sig_accumulate, linearData_alt(:,next)];
+                end
                 linTrackingMatrix(next) = 1; % Mark pixel as "used"
             end
         end
         sigList{track} = sigArray; % Assign an array to a list
+        sig_accumulate = [];
         sigArray = []; % Reset the signature array for next list.
     end
 end

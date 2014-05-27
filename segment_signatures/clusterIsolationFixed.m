@@ -66,7 +66,6 @@ for n = n_arr
         curSig = linearData_alt(:,n);
         sigArray = [sigArray, n];     % Add the first pixel to array
         if strcmp(mode(1:6),'median') || strcmp(mode(1:3), 'all')
-            cs_sze = size(sig_accumulate);
             sig_accumulate = [sig_accumulate, curSig];
         end
         track = track + 1;       % Signature number
@@ -78,6 +77,7 @@ for n = n_arr
         end
         
         for next = next_arr % Go through remaining pixels
+            cs_sze = size(sig_accumulate);
             laterSig = linearData_alt(:,next);
             if strcmp(mode(1:6),'median')
                 if cs_sze(2) == 1
@@ -88,11 +88,11 @@ for n = n_arr
             end
             
             if strcmp(mode(1:3), 'all')
-                p_arr = zeros(cs_sze(2));
+                p_arr = zeros(1,cs_sze(2));
                 for s_idx = 1:cs_sze(2)
-                    p_arr(s_idx) = dot(sigArray(:,s_idx), laterSig)/(sqrt(sum(sigArray(:,s_idx).^2))*sqrt(sum(laterSig.^2)));
+                    p_arr(s_idx) = dot(sig_accumulate(:,s_idx), laterSig)/(sqrt(sum(sig_accumulate(:,s_idx).^2))*sqrt(sum(laterSig.^2)));
                 end
-                p = mean(p_arr');
+                p = mean(p_arr);
             else
                 p = dot(curSig, laterSig)/(sqrt(sum(curSig.^2))*sqrt(sum(laterSig.^2)));
             end

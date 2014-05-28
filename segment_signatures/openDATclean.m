@@ -3,7 +3,7 @@ function [xLength, yLength, cubeData_alt, cubeData_orig, linearData_alt, linearD
 % Last edited 4/5/13
 % Open DAT file
 tic
-cd 'C:\FAMILY\Kimberly' % Directory where files are located
+cd 'C:\Family\Kimberly' % Directory where files are located
 [fileName, pathName] = uigetfile('*.dat'); % GUI to select desired file
 fID = fopen([pathName, fileName]);
 

@@ -54,9 +54,9 @@ track = 0;   % Starting tracking cluster number
 sigArray = [];   % Initialize sig indices array
 sig_accumulate = []; % Initialize the signatures accumulation array
 
-if strcmp(mode,'forwards') || strcmp(mode,'median_forwards')
+if strcmp(mode((length(mode)-7):length(mode)),'forwards')
     n_arr = 1:xLength*yLength;
-elseif strcmp(mode, 'backwards') || strcmp(mode,'median_backwards')
+elseif strcmp(mode((length(mode)-8):length(mode)), 'backwards')
     n_arr = xLength*yLength:-1:1;
 end
 
@@ -66,29 +66,41 @@ for n = n_arr
     if linTrackingMatrix(n) == 0     % Continue if not background
         curSig = linearData_alt(:,n);
         sigArray = [sigArray, n];     % Add the first pixel to array
-        sig_accumulate = [sig_accumulate, curSig];
+        if strcmp(mode(1:6),'median') || strcmp(mode(1:3), 'all')
+            sig_accumulate = [sig_accumulate, curSig];
+        end
         track = track + 1;       % Signature number
         
-        if strcmp(mode,'forwards') || strcmp(mode,'median_forwards')
+        if strcmp(mode((length(mode)-7):length(mode)),'forwards')
             next_arr = (n+1):length(linTrackingMatrix);
-        elseif strcmp(mode, 'backwards') || strcmp(mode,'median_backwards')
+        elseif strcmp(mode((length(mode)-8):length(mode)), 'backwards')
             next_arr = n-1:-1:1;
         end
         
         for next = next_arr % Go through remaining pixels
+            cs_sze = size(sig_accumulate);
+            laterSig = linearData_alt(:,next);
             if strcmp(mode(1:6),'median')
-                cs_sze = size(sig_accumulate);
                 if cs_sze(2) == 1
                     curSig = sig_accumulate;
                 else
                     curSig = median(sig_accumulate')';                    
                 end
             end
-            laterSig = linearData_alt(:,next);
-            p = dot(curSig, laterSig)/(sqrt(sum(curSig.^2))*sqrt(sum(laterSig.^2)));
+            
+            if strcmp(mode(1:3), 'all')
+                p_arr = zeros(1,cs_sze(2));
+                for s_idx = 1:cs_sze(2)
+                    p_arr(s_idx) = dot(sig_accumulate(:,s_idx), laterSig)/(sqrt(sum(sig_accumulate(:,s_idx).^2))*sqrt(sum(laterSig.^2)));
+                end
+                p = mean(p_arr);
+            else
+                p = dot(curSig, laterSig)/(sqrt(sum(curSig.^2))*sqrt(sum(laterSig.^2)));
+            end
+            
             if linTrackingMatrix(next) == 0 && p >correlationThresh  % Bin pixel into list if correlated
                 sigArray = [sigArray next];
-                if strcmp(mode(1:6),'median')
+                if strcmp(mode(1:6),'median') || strcmp(mode(1:3), 'all')
                     sig_accumulate = [sig_accumulate, linearData_alt(:,next)];
                 end
                 linTrackingMatrix(next) = 1; % Mark pixel as "used"

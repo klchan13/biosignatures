@@ -120,22 +120,22 @@ end
 data_sz = size(linearData_alt);
 medians = zeros(length(sigList), data_sz(1));
 for s_idx = 1:length(sigList)
-    medians(s_idx) = median(linearData_alt(:, sigList{s_idx})');
-    new_sig_list{s_idx} = zeros(length(sigList{s_idx}));
+    medians(s_idx, :) = median(linearData_alt(:, sigList{s_idx})');
+    new_sig_list{s_idx} = zeros(1, length(sigList{s_idx}));
 end
 
 % Go through each pixels signature in each rough aggregate and find the
 % correlation between that and the median of each signature.
+fprintf('\rRecomparing pixel signatures\r'), toc
 for ref_idx = 1:length(sigList)
     for pix_sig_idx = 1:length(sigList{ref_idx})
-        fprintf('\Recomparing signature of pixel %d of rough signature %d.\r',[pix_sig_idx, ref_idx]), toc
         pix_sig = linearData_alt(:, pix_sig_idx);
         
         % Keep track of the correlation between the current pixel signature
         % and the median of the other rough aggregate.
         p_ref_arr = zeros(1, length(sigList));
         for in_idx = 1:length(sigList)
-            p_ref_arr(in_idx) = dot(medians(ref_idx), pix_sig)/(sqrt(sum(medians(ref_idx).^2))*sqrt(sum(pix_sig.^2)));
+            p_ref_arr(in_idx) = dot(medians(in_idx, :), pix_sig)/(sqrt(sum(medians(in_idx, :).^2))*sqrt(sum(pix_sig.^2)));
         end
         new_sig_list{ref_idx}(pix_sig_idx) = find(p_ref_arr == max(p_ref_arr));
     end

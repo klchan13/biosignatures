@@ -59,7 +59,8 @@ if strcmp(mode,'forwards') || strcmp(mode,'median_forwards')
 elseif strcmp(mode, 'backwards') || strcmp(mode,'median_backwards')
     n_arr = xLength*yLength:-1:1;
 end
-    
+
+% A rough cut (like cooking!) of the different signatures
 for n = n_arr
     fprintf('\rDetermining signature of pixel %d of %d.\r',[n xLength*yLength]), toc
     if linTrackingMatrix(n) == 0     % Continue if not background
@@ -93,21 +94,66 @@ for n = n_arr
                 linTrackingMatrix(next) = 1; % Mark pixel as "used"
             end
         end
-        sigList{track} = sigArray; % Assign an array to a list
+        sigList{track} = sigArray; % Assign an array to a cell array
         sig_accumulate = [];
         sigArray = []; % Reset the signature array for next list.
     end
 end
+
+% Refinement of the signatures - compare each pixel's signature to the
+% median from each signature and bin in the signature with the highest
+% correlation.
+
+% First prepare the medians and a new list to keep the new data in.
+data_sz = size(linearData_alt);
+medians = zeros(length(sigList), data_sz(1));
+for s_idx = 1:length(sigList)
+    medians(s_idx) = median(linearData_alt(:, sigList{s_idx})');
+    new_sig_list{s_idx} = zeros(length(sigList{s_idx}));
+end
+
+% Go through each pixels signature in each rough aggregate and find the
+% correlation between that and the median of each signature.
+for ref_idx = 1:length(sigList)
+    for pix_sig_idx = 1:length(sigList{ref_idx})
+        pix_sig = linearData_alt(:, pix_sig_idx);
+        
+        % Keep track of the correlation between the current pixel signature
+        % and the median of the other rough aggregate.
+        p_ref_arr = zeros(1, length(sigList));
+        for in_idx = 1:length(sigList)
+            p_ref_arr(in_idx) = dot(medians(ref_idx), pix_sig)/(sqrt(sum(medians(ref_idx).^2))*sqrt(sum(pix_sig.^2)));
+        end
+        new_sig_list{ref_idx}(pix_sig_idx) = find(p_ref_arr == max(p_ref_arr));
+    end
+end
+
+% Now use some fancy indexing to find the misfits and prep the pixels
+% for reassigment.
+reassign = cell(length(sigList));
+for ai = 1:length(new_sig_list)
+    where_misfits = find(new_sig_list{ai} ~= ai*ones(1,length(new_sig_list{ai})));
+    misfits = new_sig_list{ai}(where_misfits);
+    for m_idx = 1:length(where_misfits)
+        reassign{misfits(m_idx)} = sigList{ai}(where_misfits(m_idx));
+    end
+end
+
+% Now add the misfits to their appropriate signature
+for ai = 1:length(sigList)
+    fin_sig_list{ai} = [sigList{ai}, reassign{ai}];
+end
+
 % Getting rid of signatures with only small amount of pixels in them.
 % These are messing up the color schematics.
 fprintf('\rGetting rid of signatures with only a small amount of pixels in them.\r')
 toc
 sigList3 = cell(1,1);
 track3 = 0;
-for one = 1:length(sigList)
-    if length(sigList{one}) > minPix
+for one = 1:length(fin_sig_list)
+    if length(fin_sig_list{one}) > minPix
         track3 = track3 + 1;
-        sigList3{track3} = sigList{one};
+        sigList3{track3} = fin_sig_list{one};
     end
 end
 sigList = sigList3;

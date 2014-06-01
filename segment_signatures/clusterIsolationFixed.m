@@ -128,6 +128,7 @@ end
 % correlation between that and the median of each signature.
 for ref_idx = 1:length(sigList)
     for pix_sig_idx = 1:length(sigList{ref_idx})
+        fprintf('\Recomparing signature of pixel %d of rough signature %d.\r',[pix_sig_idx, ref_idx]), toc
         pix_sig = linearData_alt(:, pix_sig_idx);
         
         % Keep track of the correlation between the current pixel signature
@@ -144,6 +145,7 @@ end
 % for reassigment.
 reassign = cell(length(sigList));
 for ai = 1:length(new_sig_list)
+    fprintf('\Reassigning pixels in rough signature %d.\r',ai), toc
     where_misfits = find(new_sig_list{ai} ~= ai*ones(1,length(new_sig_list{ai})));
     misfits = new_sig_list{ai}(where_misfits);
     for m_idx = 1:length(where_misfits)

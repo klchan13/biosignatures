@@ -1,6 +1,15 @@
+
+"""
+Functions for performing various classification and analyses on the output signatures found through
+the MATLAB program.
+"""
+
 import numpy as np
 import csv
 from scipy.ndimage.measurements import label
+import scipy.io
+from math import factorial as f
+import itertools
 
 def cluster_signatures(sig_out_in, bstrp_med, med_sig, p_thresh=0.05,
                        ele_order=np.array(["Fe", "Cu", "Zn", "Ca", "K", "S", "P", "Cl", "Si", "Mn"])):
@@ -9,7 +18,7 @@ def cluster_signatures(sig_out_in, bstrp_med, med_sig, p_thresh=0.05,
     """
     for s_idx, sig in enumerate(sig_out_in):
         if s_idx != len(sig_out_in)-1:
-            # Grab the two signatures of interst
+            # Grab the two signatures of interest
             s1 = sig_out_in[s_idx]
             s2 = sig_out_in[s_idx+1]
             
@@ -52,3 +61,91 @@ def cluster_sizes(allSig_mask):
         clust_sizes[clust_idx] = len(np.where(np.ravel(labels) == clust_num)[0])
         
     return clust_sizes, labels, numL
+    
+def signature_map(sig_masks, xLen, yLen):
+    """
+    Create a color-coded signature map.
+    """
+    sig_map = np.zeros((yLen, xLen))
+    for sig_idx in np.arange(len(sig_masks)):
+        sig_mask = np.reshape(sig_masks[sig_idx], (yLen, xLen))
+        sig_map[np.where(sig_mask)] = sig_idx + 1
+                
+    return sig_map
+    
+def classify_clusters(sig_map, separate_clusters, clust_num):
+    """
+    Code to automatically and empirically classify clusters.
+    """
+    # First find all the signatures within a cluster
+    clust_sig_list = []
+    for clust_idx in np.arange(1, clust_num): # Don't include the background so start at 1
+        clust_sig_map = sig_map[np.where(separate_clusters == clust_idx)]
+        clust_sig_list.append(np.unique(clust_sig_map))
+    
+    # Compare the signatures from each cluster to each other to create classes
+    # of clusters with similar signatures.
+    count = 0
+    clust_class_list = []
+    # For tracking if a cluster is already classified, non-zero if not already classified
+    clust_track = np.arange(len(clust_sig_list))
+    for sigs1_idx, sigs1 in enumerate(clust_track):
+        if (sigs1 != 0) | (sigs1_idx == 0):
+            for sigs2 in clust_track[(sigs1 + 1):]:
+                if sigs2 != 0:                       
+                    if np.shape(clust_sig_list[sigs1]) == np.shape(clust_sig_list[sigs2]):
+                        # For equal number of signatures in each cluster:
+                        # If they have the exact same signatures, put them in the same class
+                        # and update the tracking array
+                        if np.all(clust_sig_list[sigs1] == clust_sig_list[sigs2]):
+                            if count == 0:
+                                clust_class_arr = np.array([sigs1, sigs2])
+                                count = count + 1
+                            else:
+                                clust_class_arr = np.concatenate((clust_class_arr, np.array([sigs2])))
+                            clust_track[sigs1] = 0
+                            clust_track[sigs2] = 0
+                    elif abs(len(clust_sig_list[sigs1]) - len(clust_sig_list[sigs2])) == 1:
+                        # For unequal number of sigs in each cluster:
+                        # Find which cluster has more signatures.
+                        if len(clust_sig_list[sigs1]) - len(clust_sig_list[sigs2]):
+                            less_sigs = sigs1
+                            more_sigs = sigs2
+                        else:
+                            less_sigs = sigs2
+                            more_sigs = sigs1
+                        
+                        # Check to see if the signature with less signatures share all its signatures
+                        # With the cluster with more signatures:
+                        sig_compare = np.zeros(len(clust_sig_list[less_sigs]))
+                        for sig_idx, this_sig in enumerate(clust_sig_list[less_sigs]):
+                            if this_sig in clust_sig_list[more_sigs]:
+                                sig_compare[sig_idx] = 1
+                        
+                        # Add to the same class if they do, and update tracking array
+                        if all(sig_compare):
+                            if count == 0:
+                                clust_class_arr = np.array([sigs1, sigs2])
+                                count = count + 1
+                            else:
+                                clust_class_arr = np.concatenate((clust_class_arr, np.array([sigs2])))
+                            
+                            clust_track[sigs1] = 0
+                            clust_track[sigs2] = 0
+                            
+            count = 0
+            if clust_class_list == []:
+                clust_class_list.append(clust_class_arr)
+            elif clust_class_list[len(clust_class_list)-1] is not clust_class_arr:
+                clust_class_list.append(clust_class_arr)
+            
+    # Find the homeless clusters:
+    homeless_clust = np.where(clust_track)
+    
+    return clust_class_list, homeless_clust, clust_sig_list
+    
+def pearsons_correlation_coeff(vector1, vector2):
+    """
+    Pearson's correlation coefficient between two vectors.
+    """
+    return dot(vector1, vector2)/(np.sqrt(np.sum(vector1**2))*np.sqrt(np.sum(vector2**2)))

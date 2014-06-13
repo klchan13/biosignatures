@@ -14,7 +14,7 @@ def signature_map(sig_masks, xLen, yLen):
         sig_map[np.where(sig_mask)] = sig_idx + 1
                 
     return sig_map
-    
+
 def pearsons_correlation_coeff(vector1, vector2):
     """
     Pearson's correlation coefficient between two vectors.

@@ -92,7 +92,7 @@ for n = n_arr
                 for s_idx = 1:cs_sze(2)
                     p_arr(s_idx) = dot(sig_accumulate(:,s_idx), laterSig)/(sqrt(sum(sig_accumulate(:,s_idx).^2))*sqrt(sum(laterSig.^2)));
                 end
-                p = mean(p_arr);
+                p = median(p_arr);
             else
                 p = dot(curSig, laterSig)/(sqrt(sum(curSig.^2))*sqrt(sum(laterSig.^2)));
             end

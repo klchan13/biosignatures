@@ -14,6 +14,7 @@ minMag = 3.25;  % Minimum magnitude of signature
 distBtwnPix = 1.5;  % Maximum distance between contiguous pixels
 correlationThresh = 0.975; % Correlation coefficient between pixels in a signature
 minPix = 15; % Minimum pixel amount to be considered a signature
+minReassignPix = 115;
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Obtain data from DAT files
@@ -24,6 +25,19 @@ minPix = 15; % Minimum pixel amount to be considered a signature
 fprintf('\rOpening file\r')
 tic
 [xLength, yLength, cubeData_alt, cubeData_orig, linearData_alt, linearData_orig, pathName, fileName]= openDATclean([]);
+if strcmp(mode, 'display')
+    prompt = 'Do you want to use the default data? Y/N: ';
+    out = input(prompt,'s');
+    if isempty(out)
+        out = 'Y';
+    end
+    if strcmp(out,'Y')
+        % Open default files
+    else
+        % Prompt user to seledct new files.
+        fID = fopen([pathName, fileName]);
+    end
+end
 
 % LINEAR TO XY - Change from linear to x,y coordinates
 function [picCluster] = linear2xy(tempBlank,xLength,yLength)
@@ -47,7 +61,7 @@ end
 linTrackingMatrix = dataIsolation(xLength,yLength,linearData_alt);
 
 % SIGNATURE CLASSIFICATION - Bin data into different signature lists.
-function [sigList] = sigClassify(xLength,yLength,linTrackingMatrix, mode)
+function [fin_sig_list] = sigClassify(xLength,yLength,linTrackingMatrix, mode)
 fprintf('\rBinning data into different signature lists.\r')
 toc
 track = 0;   % Starting tracking cluster number
@@ -59,7 +73,8 @@ if strcmp(mode((length(mode)-7):length(mode)),'forwards')
 elseif strcmp(mode((length(mode)-8):length(mode)), 'backwards')
     n_arr = xLength*yLength:-1:1;
 end
-    
+
+% A rough cut (like cooking!) of the different signatures
 for n = n_arr
     fprintf('\rDetermining signature of pixel %d of %d.\r',[n xLength*yLength]), toc
     if linTrackingMatrix(n) == 0     % Continue if not background
@@ -105,13 +120,13 @@ for n = n_arr
                 linTrackingMatrix(next) = 1; % Mark pixel as "used"
             end
         end
-        sigList{track} = sigArray; % Assign an array to a list
+        sigList{track} = sigArray; % Assign an array to a cell array
         sig_accumulate = [];
         sigArray = []; % Reset the signature array for next list.
     end
 end
+
 % Getting rid of signatures with only small amount of pixels in them.
-% These are messing up the color schematics.
 fprintf('\rGetting rid of signatures with only a small amount of pixels in them.\r')
 toc
 sigList3 = cell(1,1);
@@ -122,21 +137,81 @@ for one = 1:length(sigList)
         sigList3{track3} = sigList{one};
     end
 end
-sigList = sigList3;
+sigList = sigList3;% These are messing up the color schematics.
+
+% Refinement of the signatures - compare each pixel's signature to the
+% median from each signature and bin in the signature with the highest
+% correlation.
+
+% First prepare the medians and a new list to keep the new data in.
+data_sz = size(linearData_alt);
+medians = zeros(length(sigList), data_sz(1));
+for s_idx = 1:length(sigList)
+    medians(s_idx, :) = median(linearData_alt(:, sigList{s_idx})');
+    new_sig_list{s_idx} = zeros(1, length(sigList{s_idx}));
 end
 
-sigList = sigClassify(xLength,yLength,linTrackingMatrix,mode);
+% Go through each pixels signature in each rough aggregate and find the
+% correlation between that and the median of each signature.
+fprintf('\rRecomparing pixel signatures\r'), toc
+for ref_idx = 1:length(sigList)
+    for pix_sig_idx = 1:length(sigList{ref_idx})
+        pixel = sigList{ref_idx}(pix_sig_idx);
+        pix_sig = linearData_alt(:, pixel);
+        
+        % Keep track of the correlation between the current pixel signature
+        % and the median of the other rough aggregate.
+        p_ref_arr = zeros(1, length(sigList));
+        for in_idx = 1:length(sigList)
+            % You don't want to be accidentally assigning pixels from other
+            % signatures to a small signature that may be biased (due 
+            % simply to its small amount).  Since these signatures may not
+            % be real, bias them towards assigning them to larger
+            % signatures and don't let pixels from larger signatures be
+            % assigned to the small signatures.  However, keep these
+            % signatures as they may be real.
+            if length(sigList{in_idx}) > minReassignPix || in_idx == ref_idx
+                p_ref_arr(in_idx) = dot(medians(in_idx, :), pix_sig)/(sqrt(sum(medians(in_idx, :).^2))*sqrt(sum(pix_sig.^2)));
+            else
+                p_ref_arr(in_idx) = 0;
+            end
+        end
+        new_sig_list{ref_idx}(pix_sig_idx) = find(p_ref_arr == max(p_ref_arr));
+    end
+end
+
+% Now use some fancy indexing to find the misfits and prep the pixels
+% for reassigment.
+reassign = cell(1, length(sigList));
+for ai = 1:length(new_sig_list)
+    where_misfits = find(new_sig_list{ai} ~= ai*ones(1,length(new_sig_list{ai})));
+    misfits = new_sig_list{ai}(where_misfits);
+    for m_idx = 1:length(where_misfits)
+        reassign{misfits(m_idx)} = [reassign{misfits(m_idx)}, sigList{ai}(where_misfits(m_idx))];
+    end
+end
+
+% Now add the misfits to their appropriate signature
+for ai = 1:length(sigList)
+    real_vox = find(new_sig_list{ai} == ai*ones(1,length(new_sig_list{ai})));
+    fin_sig_list{ai} = [sigList{ai}(real_vox), reassign{ai}];
+end
+end
+
+if ~strcmp(mode, 'display')
+    new_sigList = sigClassify(xLength,yLength,linTrackingMatrix,mode);
+end
 
 % ASSIGNING CLUSTERS TO A SIGNATURE - Assigning clusters to different signatures
-function [tempBlank, allSig] = assignClust(xLength,yLength,sigList)
+function [tempBlank, allSig] = assignClust(xLength,yLength,new_sigList)
 fprintf('\rAssigning clusters to different signatures.\r')
 toc
 tempBlank = zeros(1,xLength*yLength);
 tempBlank2 = zeros(1,xLength*yLength);
 allSig = cell(1,1);
-for sigNumLoop = 1:length(sigList)
-    tempBlank(sigList{sigNumLoop}) = sigNumLoop;
-    tempBlank2(sigList{sigNumLoop}) = 1;
+for sigNumLoop = 1:length(new_sigList)
+    tempBlank(new_sigList{sigNumLoop}) = sigNumLoop;
+    tempBlank2(new_sigList{sigNumLoop}) = 1;
     allSig{sigNumLoop} = tempBlank2;
     tempBlank2 = zeros(1,xLength*yLength);
 end
@@ -145,7 +220,7 @@ end
 % Display all signatures.
 fprintf('\rDisplaying all signatures.\r')
 toc
-[tempBlank, allSig] = assignClust(xLength,yLength,sigList);
+[tempBlank, allSig] = assignClust(xLength,yLength,new_sigList);
 sigIm = linear2xy(tempBlank,xLength,yLength);
 figHandle1 = figure();
 subplot(6,19,[1:6 20:25 39:44 58:62 77:82 96:101]);
@@ -156,18 +231,18 @@ set(gcf,'Position',[182 208 1343 449])
 
 % CLUSTER SEPARATION - Separate clusters based on distance between
 % contiguous pixels.
-function [aClustList2] = clustSeparation(sigList,sigNum,sigIndices)
+function [aClustList2] = clustSeparation(new_sigList,sigNum,sigIndices)
 dist = [];
 disTrack = 0;
-distTrackingArray = zeros(1,length(sigList{sigNum}));
+distTrackingArray = zeros(1,length(new_sigList{sigNum}));
 
 % Make an array of all the distances from one pixel to the rest.
 fprintf('\rMaking an array of all the distances from one pixel to the rest.\r')
 toc
-for f = 1:length(sigList{sigNum})
+for f = 1:length(new_sigList{sigNum})
     if distTrackingArray(f) == 0
         disTrack = disTrack + 1;    % Track which pixel the program is at.
-        for g = (f+1):length(sigList{sigNum})
+        for g = (f+1):length(new_sigList{sigNum})
             dist = [dist sqrt((sigIndices(2,f)- sigIndices(2,g))^2 + (sigIndices(3,f)- sigIndices(3,g))^2)];
             distTrackingArray(f) = 1;
         end
@@ -335,7 +410,9 @@ while(1)
     cursorInfo = [cursorInfo, getCursorInfo(h)];
     cursTrack = cursTrack + 1;
     % Reassigning value to allSig because it keeps disappearing.
-    [tempBlank, allSig] = assignClust(xLength,yLength,sigList);
-    spectraClust(cursorInfo, cursTrack, xLength, yLength, sigIm, sigList, linearData_orig, allSig)
+    if ~strcmp(mode, 'display')
+        [tempBlank, allSig] = assignClust(xLength,yLength,new_sigList);
+    end
+    spectraClust(cursorInfo, cursTrack, xLength, yLength, sigIm, new_sigList, linearData_orig, allSig)
 end
 end

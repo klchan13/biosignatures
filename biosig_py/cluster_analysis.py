@@ -1,15 +1,11 @@
 
 """
-Functions for performing various classification and analyses on the output signatures found through
+Functions for performing various classification and analyses on the output clusters found through
 the MATLAB program.
 """
 
 import numpy as np
-import csv
 from scipy.ndimage.measurements import label
-import scipy.io
-from math import factorial as f
-import itertools
 
 def cluster_signatures(sig_out_in, bstrp_med, med_sig, p_thresh=0.05,
                        ele_order=np.array(["Fe", "Cu", "Zn", "Ca", "K", "S", "P", "Cl", "Si", "Mn"])):
@@ -61,18 +57,7 @@ def cluster_sizes(allSig_mask):
         clust_sizes[clust_idx] = len(np.where(np.ravel(labels) == clust_num)[0])
         
     return clust_sizes, labels, numL
-    
-def signature_map(sig_masks, xLen, yLen):
-    """
-    Create a color-coded signature map.
-    """
-    sig_map = np.zeros((yLen, xLen))
-    for sig_idx in np.arange(len(sig_masks)):
-        sig_mask = np.reshape(sig_masks[sig_idx], (yLen, xLen))
-        sig_map[np.where(sig_mask)] = sig_idx + 1
-                
-    return sig_map
-    
+       
 def classify_clusters(sig_map, separate_clusters, clust_num):
     """
     Code to automatically and empirically classify clusters.
@@ -143,9 +128,3 @@ def classify_clusters(sig_map, separate_clusters, clust_num):
     homeless_clust = np.where(clust_track)
     
     return clust_class_list, homeless_clust, clust_sig_list
-    
-def pearsons_correlation_coeff(vector1, vector2):
-    """
-    Pearson's correlation coefficient between two vectors.
-    """
-    return dot(vector1, vector2)/(np.sqrt(np.sum(vector1**2))*np.sqrt(np.sum(vector2**2)))

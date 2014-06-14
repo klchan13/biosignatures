@@ -186,6 +186,6 @@ def sig_reliability(lin_data_alt, sig_forwards, sig_backwards, sz_diff=0.4):
             this_cc_arr[more_idx] = stats.pearsonr(less_sigs[0][less_idx], this_more_sig[more_idx])[0]
             
         cc_arr[less_idx] = max(this_cc_arr)
-        sim_sig[less_idx] = np.where(idx)[0][]
+        sim_sig[less_idx] = np.where(idx)[0][np.where(idx)[0][np.where(this_cc_arr == cc_arr[less_idx])]]
         
     return cc_arr, sim_sig

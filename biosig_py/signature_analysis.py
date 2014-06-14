@@ -4,6 +4,8 @@ the MATLAB program.
 """
 
 import numpy as np
+import scipy.stats.stats as stats
+import biosignatures.utils as bsu
 
 def signature(sig_masks, lin_data, s_idx):
     """
@@ -15,11 +17,10 @@ def signature_medians(sig_masks, lin_data):
     """
     Find the signature medians.
     """
-    sig_meds = np.zeros((len(sig_masks), np.shape(lin_data_alt)[0]))
-    for sig_idx in np.arange(len(sig_forwards)):
-        sig_meds[sig_idx] = np.squeeze(np.median(np.squeeze(signature(sig_masks,
-                                                         lin_data, s_idx))), -1)
-                
+    sig_meds = np.zeros((len(sig_masks), np.shape(lin_data)[0]))
+    for sig_idx in np.arange(len(sig_masks)):
+        sig_meds[sig_idx] = np.median(np.squeeze(signature(sig_masks,
+                                                 lin_data, sig_idx)),-1)
     return sig_meds
     
 def sig_iqr(lin_data, sigs):
@@ -37,10 +38,106 @@ def sig_quartile(lin_data, sigs, percentile):
     """
     quartile = np.zeros((len(sigs), lin_data.shape[0]))
     for s_idx in np.arange(len(sigs)):
-        quartile[s_idx] = stats.scoreatpercentile(np.squeeze(sa.signature(sigs, lin_data, s_idx)),
+        quartile[s_idx] = stats.scoreatpercentile(np.squeeze(signature(sigs, lin_data, s_idx)),
                                                   percentile, axis=-1)
         
     return quartile
+    
+def reclass(lin_data_alt, allSig, minReassignPix=115):
+    """
+    For reclassifying over and over and over...until the end of time!
+    (Or just until you have reduced the IQR as much as you can.)
+    
+    This does the main computation and is re-adapted from the MATLAB code.
+    """
+    sigList = []
+    for idx in np.arange(len(allSig)):
+        sigList.append(np.where(np.squeeze(allSig[idx]))[0])
+        
+    new_sig_list = []    
+    medians = signature_medians(allSig, lin_data_alt)
+    for s_idx in np.arange(len(sigList)):
+        new_sig_list.append(np.zeros(len(sigList[s_idx])))
+    
+    # Go through each pixels signature in each rough aggregate and find the
+    # correlation between that and the median of each signature.
+    for ref_idx in np.arange(len(sigList)):
+        for pix_sig_idx in np.arange(len(sigList[ref_idx])):
+            pixel = sigList[ref_idx][pix_sig_idx]
+            pix_sig = lin_data_alt[:, pixel]
+            
+            # Keep track of the correlation between the current pixel signature
+            # and the median of the other rough aggregate.
+            p_ref_arr = np.zeros(len(sigList))
+            for in_idx in np.arange(len(sigList)):
+                # You don't want to be accidentally assigning pixels from other
+                # signatures to a small signature that may be biased (due 
+                # simply to its small amount).  Since these signatures may not
+                # be real, bias them towards assigning them to larger
+                # signatures and don't let pixels from larger signatures be
+                # assigned to the small signatures.  However, keep these
+                # signatures as they may be real.
+                if (len(sigList[in_idx]) > minReassignPix)| (in_idx == ref_idx):
+                    p_ref_arr[in_idx] = bsu.pearsons_correlation_coeff(medians[in_idx], pix_sig)
+                else:
+                    p_ref_arr[in_idx] = 0
+            new_sig_list[ref_idx][pix_sig_idx] = np.where(p_ref_arr == max(p_ref_arr))[0][0]
+    
+    # Now use some fancy indexing to find the misfits and prep the pixels
+    # for reassigment.
+    reassign = list(np.arange(len(new_sig_list)))
+    for ai in np.arange(1, len(new_sig_list)):
+        where_misfits = np.where(new_sig_list[ai] != ai*np.ones(len(new_sig_list[ai])))
+        misfits = new_sig_list[ai][where_misfits]
+        for m_idx in np.arange(len(where_misfits[0])):
+            if reassign[int(misfits[m_idx])].shape:
+                reassign[int(misfits[m_idx])] = np.concatenate((reassign[int(misfits[m_idx])],
+                                                               np.array([sigList[ai][where_misfits[0][m_idx]]])))
+            else:
+                reassign[int(misfits[m_idx])] = np.array([sigList[ai][where_misfits[0][m_idx]]])           
+
+    # Now add the misfits to their appropriate signature
+    fin_sig_list = []
+    for ai in np.arange(len(sigList)):
+        real_vox = np.where(new_sig_list[ai] == ai*np.ones(len(new_sig_list[ai])))
+        if reassign[ai].shape:
+            fin_sig_list.append(np.squeeze(np.concatenate((sigList[ai][real_vox], reassign[ai]))))
+        else:
+            fin_sig_list.append(sigList[ai][real_vox])
+        
+    return fin_sig_list
+    
+def refine_reclass(sig_no_reclass, lin_data, itr=40, minReassignPix=115):
+    """
+    Keep reclassifying until the error between iterations no longer changes.
+    """
+    sigs = np.copy(sig_no_reclass)
+
+    err_arr = np.zeros(itr)
+    for i in np.arange(itr):       
+        # Run through reclassification algorithm
+        fin_sig_list = reclass(lin_data, sigs, minReassignPix=minReassignPix)
+        mask_list = []
+        
+        # Make a mask out of output of reclassification algorithm
+        for idx in np.arange(len(fin_sig_list)):
+            this_mask = np.zeros((1, np.shape(sigs[idx])[1]))
+            this_mask[0, (fin_sig_list[idx],)] = 1
+            mask_list.append(this_mask)
+        
+        # Compare the new reclassification to the old one and evaluate the error.
+        prev_iqr = sig_iqr(lin_data, sigs)
+        cur_iqr = sig_iqr(lin_data, mask_list)
+        
+        prev_medians = signature_medians(sigs, lin_data) 
+        cur_medians = signature_medians(mask_list, lin_data)
+        
+        err_arr[i] = np.sum(prev_iqr - cur_iqr) #/np.median(np.concatenate([prev_medians, cur_medians]), 0))
+        
+        # Update the new mask
+        sigs = mask_list
+        
+    return sigs, err_arr
     
 def sig_reliability(lin_data_alt, sig_forwards, sig_backwards, sz_diff=0.4):
     """

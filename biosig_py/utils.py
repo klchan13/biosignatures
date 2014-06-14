@@ -14,6 +14,16 @@ def signature_map(sig_masks, xLen, yLen):
         sig_map[np.where(sig_mask)] = sig_idx + 1
                 
     return sig_map
+    
+def all_sig_mask(sig_mask, xLen=491, yLen=623):
+    """
+    Create a mask of the biological data from all the signatures.
+    """
+    sig_mask = np.zeros(np.squeeze(sig_mask[0]).shape[0])
+    for s_idx in np.arange(len(sig_mask)):
+        sig_mask[np.where(np.squeeze(sig_mask[s_idx]))] = 1
+        
+    return sig_mask
 
 def pearsons_correlation_coeff(vector1, vector2):
     """

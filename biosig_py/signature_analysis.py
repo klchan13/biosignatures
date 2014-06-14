@@ -77,7 +77,7 @@ def reclass(lin_data_alt, allSig, minReassignPix=115):
                 # signatures and don't let pixels from larger signatures be
                 # assigned to the small signatures.  However, keep these
                 # signatures as they may be real.
-                if (len(sigList[in_idx]) > minReassignPix)| (in_idx == ref_idx):
+                if (minReassignPix is None) | ((len(sigList[in_idx]) > minReassignPix) | (in_idx == ref_idx)):
                     p_ref_arr[in_idx] = bsu.pearsons_correlation_coeff(medians[in_idx], pix_sig)
                 else:
                     p_ref_arr[in_idx] = 0
@@ -107,37 +107,42 @@ def reclass(lin_data_alt, allSig, minReassignPix=115):
         
     return fin_sig_list
     
-def refine_reclass(sig_no_reclass, lin_data, itr=40, minReassignPix=115):
+def refine_reclass(sig_no_reclass, lin_data, err_thresh=0.065, minReassignPix=None):
     """
     Keep reclassifying until the error between iterations no longer changes.
     """
     sigs = np.copy(sig_no_reclass)
+    err_arr = np.array([5]) # Place holder before adding on the real errors.
 
-    err_arr = np.zeros(itr)
-    for i in np.arange(itr):       
+    itr = 0
+    # Continue reclassification if the sum of the differences in IQR is larger
+    # than zero, which indicates that it hasn't converged at an answer yet.
+    while err_arr[len(err_arr)-1] > err_thresh:
+        itr = itr + 1
+        
         # Run through reclassification algorithm
         fin_sig_list = reclass(lin_data, sigs, minReassignPix=minReassignPix)
         mask_list = []
-        
-        # Make a mask out of output of reclassification algorithm
         for idx in np.arange(len(fin_sig_list)):
-            this_mask = np.zeros((1, np.shape(sigs[idx])[1]))
+            this_mask = np.zeros((1, np.shape(med_forw_sigs[idx])[1]))
             this_mask[0, (fin_sig_list[idx],)] = 1
             mask_list.append(this_mask)
         
-        # Compare the new reclassification to the old one and evaluate the error.
+        # Find the difference between the IQR of the signatures from the
+        # previous reclassification and the IQR of the signatures from the
+        # current reclassification.
         prev_iqr = sig_iqr(lin_data, sigs)
         cur_iqr = sig_iqr(lin_data, mask_list)
+        this_err = np.sum(abs(prev_iqr - cur_iqr))
         
-        prev_medians = signature_medians(sigs, lin_data) 
-        cur_medians = signature_medians(mask_list, lin_data)
+        if itr == 0:
+            err_arr = np.array([this_err])
+        else:
+            err_arr = np.concatenate((err_arr, np.array([this_err])))
         
-        err_arr[i] = np.sum(prev_iqr - cur_iqr) #/np.median(np.concatenate([prev_medians, cur_medians]), 0))
-        
-        # Update the new mask
         sigs = mask_list
         
-    return sigs, err_arr
+    return sigs, err_arr, itr
     
 def sig_reliability(lin_data_alt, sig_forwards, sig_backwards, sz_diff=0.4):
     """
@@ -167,6 +172,7 @@ def sig_reliability(lin_data_alt, sig_forwards, sig_backwards, sz_diff=0.4):
         
     cc_arr = np.zeros(len(less_sigs[0]))
     sim_sig = np.zeros(len(less_sigs[0]))
+    iqr_diff_arr = np.zeros(len(less_sigs[0]))
     # Now find the reliability
     for less_idx in np.arange(len(less_sigs[0])):
         # Find signatures within more_sigs with comparable size to the current sig in less_sigs
@@ -180,6 +186,6 @@ def sig_reliability(lin_data_alt, sig_forwards, sig_backwards, sz_diff=0.4):
             this_cc_arr[more_idx] = stats.pearsonr(less_sigs[0][less_idx], this_more_sig[more_idx])[0]
             
         cc_arr[less_idx] = max(this_cc_arr)
-        sim_sig[less_idx] = np.where(idx)[0][np.where(this_cc_arr == cc_arr[less_idx])]
+        sim_sig[less_idx] = np.where(idx)[0][]
         
     return cc_arr, sim_sig

@@ -72,9 +72,11 @@ if strcmp(mode((length(mode)-7):length(mode)),'forwards')
     n_arr = 1:xLength*yLength;
 elseif strcmp(mode((length(mode)-8):length(mode)), 'backwards')
     n_arr = xLength*yLength:-1:1;
+elseif strcmp(mode((length(mode)-5):length(mode)), 'random')
+    n_arr = randperm(xLength*yLength);
 end
 
-% A rough cut (like cooking!) of the different signatures
+count = 1;
 for n = n_arr
     fprintf('\rDetermining signature of pixel %d of %d.\r',[n xLength*yLength]), toc
     if linTrackingMatrix(n) == 0     % Continue if not background
@@ -89,6 +91,8 @@ for n = n_arr
             next_arr = (n+1):length(linTrackingMatrix);
         elseif strcmp(mode((length(mode)-8):length(mode)), 'backwards')
             next_arr = n-1:-1:1;
+        elseif strcmp(mode((length(mode)-5):length(mode)), 'random')
+            next_arr = n_arr((count + 1):n_arr(xLength*yLength));
         end
         
         for next = next_arr % Go through remaining pixels
@@ -124,78 +128,79 @@ for n = n_arr
         sig_accumulate = [];
         sigArray = []; % Reset the signature array for next list.
     end
+    count = count + 1;
 end
 
 % Getting rid of signatures with only small amount of pixels in them.
-fprintf('\rGetting rid of signatures with only a small amount of pixels in them.\r')
-toc
-sigList3 = cell(1,1);
-track3 = 0;
-for one = 1:length(sigList)
-    if length(sigList{one}) > minPix
-        track3 = track3 + 1;
-        sigList3{track3} = sigList{one};
-    end
-end
-sigList = sigList3;% These are messing up the color schematics.
-
+% fprintf('\rGetting rid of signatures with only a small amount of pixels in them.\r')
+% toc
+% sigList3 = cell(1,1);
+% track3 = 0;
+% for one = 1:length(sigList)
+%     if length(sigList{one}) > minPix
+%         track3 = track3 + 1;
+%         sigList3{track3} = sigList{one};
+%     end
+% end
+% sigList = sigList3;% These are messing up the color schematics.
+fin_sig_list = sigList;
 % Refinement of the signatures - compare each pixel's signature to the
 % median from each signature and bin in the signature with the highest
 % correlation.
 
 % First prepare the medians and a new list to keep the new data in.
-data_sz = size(linearData_alt);
-medians = zeros(length(sigList), data_sz(1));
-for s_idx = 1:length(sigList)
-    medians(s_idx, :) = median(linearData_alt(:, sigList{s_idx})');
-    new_sig_list{s_idx} = zeros(1, length(sigList{s_idx}));
-end
-
-% Go through each pixels signature in each rough aggregate and find the
-% correlation between that and the median of each signature.
-fprintf('\rRecomparing pixel signatures\r'), toc
-for ref_idx = 1:length(sigList)
-    for pix_sig_idx = 1:length(sigList{ref_idx})
-        pixel = sigList{ref_idx}(pix_sig_idx);
-        pix_sig = linearData_alt(:, pixel);
-        
-        % Keep track of the correlation between the current pixel signature
-        % and the median of the other rough aggregate.
-        p_ref_arr = zeros(1, length(sigList));
-        for in_idx = 1:length(sigList)
-            % You don't want to be accidentally assigning pixels from other
-            % signatures to a small signature that may be biased (due 
-            % simply to its small amount).  Since these signatures may not
-            % be real, bias them towards assigning them to larger
-            % signatures and don't let pixels from larger signatures be
-            % assigned to the small signatures.  However, keep these
-            % signatures as they may be real.
-            if length(sigList{in_idx}) > minReassignPix || in_idx == ref_idx
-                p_ref_arr(in_idx) = dot(medians(in_idx, :), pix_sig)/(sqrt(sum(medians(in_idx, :).^2))*sqrt(sum(pix_sig.^2)));
-            else
-                p_ref_arr(in_idx) = 0;
-            end
-        end
-        new_sig_list{ref_idx}(pix_sig_idx) = find(p_ref_arr == max(p_ref_arr));
-    end
-end
-
-% Now use some fancy indexing to find the misfits and prep the pixels
-% for reassigment.
-reassign = cell(1, length(sigList));
-for ai = 1:length(new_sig_list)
-    where_misfits = find(new_sig_list{ai} ~= ai*ones(1,length(new_sig_list{ai})));
-    misfits = new_sig_list{ai}(where_misfits);
-    for m_idx = 1:length(where_misfits)
-        reassign{misfits(m_idx)} = [reassign{misfits(m_idx)}, sigList{ai}(where_misfits(m_idx))];
-    end
-end
-
-% Now add the misfits to their appropriate signature
-for ai = 1:length(sigList)
-    real_vox = find(new_sig_list{ai} == ai*ones(1,length(new_sig_list{ai})));
-    fin_sig_list{ai} = [sigList{ai}(real_vox), reassign{ai}];
-end
+% data_sz = size(linearData_alt);
+% medians = zeros(length(sigList), data_sz(1));
+% for s_idx = 1:length(sigList)
+%     medians(s_idx, :) = median(linearData_alt(:, sigList{s_idx})');
+%     new_sig_list{s_idx} = zeros(1, length(sigList{s_idx}));
+% end
+% 
+% % Go through each pixels signature in each rough aggregate and find the
+% % correlation between that and the median of each signature.
+% fprintf('\rRecomparing pixel signatures\r'), toc
+% for ref_idx = 1:length(sigList)
+%     for pix_sig_idx = 1:length(sigList{ref_idx})
+%         pixel = sigList{ref_idx}(pix_sig_idx);
+%         pix_sig = linearData_alt(:, pixel);
+%         
+%         % Keep track of the correlation between the current pixel signature
+%         % and the median of the other rough aggregate.
+%         p_ref_arr = zeros(1, length(sigList));
+%         for in_idx = 1:length(sigList)
+%             % You don't want to be accidentally assigning pixels from other
+%             % signatures to a small signature that may be biased (due 
+%             % simply to its small amount).  Since these signatures may not
+%             % be real, bias them towards assigning them to larger
+%             % signatures and don't let pixels from larger signatures be
+%             % assigned to the small signatures.  However, keep these
+%             % signatures as they may be real.
+%             if length(sigList{in_idx}) > minReassignPix || in_idx == ref_idx
+%                 p_ref_arr(in_idx) = dot(medians(in_idx, :), pix_sig)/(sqrt(sum(medians(in_idx, :).^2))*sqrt(sum(pix_sig.^2)));
+%             else
+%                 p_ref_arr(in_idx) = 0;
+%             end
+%         end
+%         new_sig_list{ref_idx}(pix_sig_idx) = find(p_ref_arr == max(p_ref_arr));
+%     end
+% end
+% 
+% % Now use some fancy indexing to find the misfits and prep the pixels
+% % for reassigment.
+% reassign = cell(1, length(sigList));
+% for ai = 1:length(new_sig_list)
+%     where_misfits = find(new_sig_list{ai} ~= ai*ones(1,length(new_sig_list{ai})));
+%     misfits = new_sig_list{ai}(where_misfits);
+%     for m_idx = 1:length(where_misfits)
+%         reassign{misfits(m_idx)} = [reassign{misfits(m_idx)}, sigList{ai}(where_misfits(m_idx))];
+%     end
+% end
+% 
+% % Now add the misfits to their appropriate signature
+% for ai = 1:length(sigList)
+%     real_vox = find(new_sig_list{ai} == ai*ones(1,length(new_sig_list{ai})));
+%     fin_sig_list{ai} = [sigList{ai}(real_vox), reassign{ai}];
+% end
 end
 
 if ~strcmp(mode, 'display')
@@ -330,89 +335,90 @@ end
 
 % DISPLAY SPECTRA AND CLUSTERS OF SIGNATURE - Displays the spectra and 
 % individual clusters of selected signature.
-function [] = spectraClust(cursorInfo, cursTrack, xLength, yLength, sigIm, sigList,linearData_orig, allSig)
-sigPos = cursorInfo(cursTrack).Position;  % Column, row
-eleNum_all = size(linearData_orig);
-selectedSig = sigIm(sigPos(2),sigPos(1));
-
-% Clusters of selected signature
-[row, col] = find(linear2xy(allSig{selectedSig},xLength,yLength));
-sigIndices = [sigList{selectedSig}; row'; col'];
-curClustList = clustSeparation(sigList,selectedSig,sigIndices);
-finPicClustDisp = dispClust(yLength,xLength,curClustList,sigIndices); % Clusters within sig
-
-% Plot clusters of selected signature
-subplot(6,19,[7:12 26:31 45:50 64:69 83:88 102:107]);
-imagesc(finPicClustDisp)
-set(gca,'XTick',[],'YTick',[])
-title(sprintf('Clusters of Signature %s',num2str(selectedSig)),'fontsize',14,'fontweight','b')
-
-% Average spectra of selected signature
-spectra = linearData_orig(:,find(allSig{selectedSig}));
-spectraSz = size(spectra);
-%spectraSzTransposed = size(spectra');
-subplot(6,19,[14:19 33:38 52:57 71:76 90:95 109:114]);
-lower_range25 = median(spectra') - prctile(spectra', 25);
-upper_range75 = prctile(spectra', 75) - median(spectra');
-
-% Write spectra into excel file.
-% [fileNamexl, pathNamexl] = uigetfile('*.xlsx','Select the excel spreadsheet you would like to write into.');
-% excelFile = [pathNamexl,fileNamexl];
-% xlswrite(excelFile,spectra')
-
-% Display spectra.
-errorbar(1:eleNum_all(1), median(spectra'),lower_range25, upper_range75, '--k','LineWidth',2)
-title('Average Spectra','fontsize',14,'fontweight','b')
-ylabel('Pixel Intensity','fontsize',12,'fontweight','b')
-set(gca, 'XTick',1:spectraSz(1), 'XTickLabel',{'Fe' 'Cu' 'Zn' 'Ca' 'K' 'S' 'P' 'Cl' 'Si' 'Mn'})
-xlabel('Element','fontsize',12,'fontweight','b')
-hold on
-
-% Average spectra of selected cluster
-selectedClust = finPicClustDisp(sigPos(2),sigPos(1)); % Selected cluster
-[clustRow, clustCol] = find(finPicClustDisp == selectedClust);
-tempArray = [];
-spectraClust = [];
-for bin1 = 1:length(clustRow)
-    for eleNum = 1:10;
-        tempArray = [tempArray; cubeData_orig(clustRow(bin1),clustCol(bin1),eleNum)];
-    end
-    spectraClust = [spectraClust tempArray];
-    tempArray = [];
-end
-spectraSzClust = size(spectraClust);
-lower_range25_clust = median(spectraClust') - prctile(spectraClust', 25);
-upper_range75_clust = prctile(spectraClust', 75) - median(spectraClust');
-if spectraSzClust > 1
-    errorbar(1:eleNum_all(1), median(spectraClust'), lower_range25_clust, upper_range75_clust, 'r','LineWidth',2)
-else
-    plot(spectraClust,'r','LineWidth',2)
-end
-title(sprintf('Average Spectra of Cluster %d of Signature %d',[(selectedClust) (selectedSig)]),'fontsize',14,'fontweight','b')
-ylabel('Pixel Intensity','fontsize',12,'fontweight','b')
-set(gca, 'XTick',1:spectraSzClust(1), 'XTickLabel',{'Fe' 'Cu' 'Zn' 'Ca' 'K' 'S' 'P' 'Cl' 'Si' 'Mn'})
-ylim([0 max([prctile(spectraClust', 75), prctile(spectra', 75)])+1])
-xlabel('Element','fontsize',12,'fontweight','b')
-legend('Signature Average','Cluster Average','Location','NorthEast');
-hold off
-end
-
-% Initialize interactive mode.
-fprintf('\rInitializing interactive mode.\r')
-toc
-h = datacursormode(figHandle1);
-datacursormode on
-cursorInfo = [];
-cursTrack = 0;
-fprintf('\rClick on the image titled "Cluster Signatures" to select a signature\ror a cluster then press Return.  Dark blue is the background.\r')
-while(1)
-    pause   % Allow user time to select a point.  Press enter to execute
-    cursorInfo = [cursorInfo, getCursorInfo(h)];
-    cursTrack = cursTrack + 1;
-    % Reassigning value to allSig because it keeps disappearing.
-    if ~strcmp(mode, 'display')
-        [tempBlank, allSig] = assignClust(xLength,yLength,new_sigList);
-    end
-    spectraClust(cursorInfo, cursTrack, xLength, yLength, sigIm, new_sigList, linearData_orig, allSig)
-end
+% function [] = spectraClust(cursorInfo, cursTrack, xLength, yLength, sigIm, sigList,linearData_orig, allSig)
+% sigPos = cursorInfo(cursTrack).Position;  % Column, row
+% eleNum_all = size(linearData_orig);
+% selectedSig = sigIm(sigPos(2),sigPos(1));
+% 
+% % Clusters of selected signature
+% [row, col] = find(linear2xy(allSig{selectedSig},xLength,yLength));
+% sigIndices = [sigList{selectedSig}; row'; col'];
+% curClustList = clustSeparation(sigList,selectedSig,sigIndices);
+% finPicClustDisp = dispClust(yLength,xLength,curClustList,sigIndices); % Clusters within sig
+% 
+% % Plot clusters of selected signature
+% subplot(6,19,[7:12 26:31 45:50 64:69 83:88 102:107]);
+% imagesc(finPicClustDisp)
+% set(gca,'XTick',[],'YTick',[])
+% title(sprintf('Clusters of Signature %s',num2str(selectedSig)),'fontsize',14,'fontweight','b')
+% 
+% % Average spectra of selected signature
+% spectra = linearData_orig(:,find(allSig{selectedSig}));
+% spectraSz = size(spectra);
+% %spectraSzTransposed = size(spectra');
+% subplot(6,19,[14:19 33:38 52:57 71:76 90:95 109:114]);
+% lower_range25 = median(spectra') - prctile(spectra', 25);
+% upper_range75 = prctile(spectra', 75) - median(spectra');
+% 
+% % Write spectra into excel file.
+% % [fileNamexl, pathNamexl] = uigetfile('*.xlsx','Select the excel spreadsheet you would like to write into.');
+% % excelFile = [pathNamexl,fileNamexl];
+% % xlswrite(excelFile,spectra')
+% 
+% % Display spectra.
+% errorbar(1:eleNum_all(1), median(spectra'),lower_range25, upper_range75, '--k','LineWidth',2)
+% title('Average Spectra','fontsize',14,'fontweight','b')
+% ylabel('Pixel Intensity','fontsize',12,'fontweight','b')
+% set(gca, 'XTick',1:spectraSz(1), 'XTickLabel',{'Fe' 'Cu' 'Zn' 'Ca' 'K' 'S' 'P' 'Cl' 'Si' 'Mn'})
+% xlabel('Element','fontsize',12,'fontweight','b')
+% hold on
+% 
+% % Average spectra of selected cluster
+% selectedClust = finPicClustDisp(sigPos(2),sigPos(1)); % Selected cluster
+% [clustRow, clustCol] = find(finPicClustDisp == selectedClust);
+% tempArray = [];
+% spectraClust = [];
+% for bin1 = 1:length(clustRow)
+%     for eleNum = 1:10;
+%         tempArray = [tempArray; cubeData_orig(clustRow(bin1),clustCol(bin1),eleNum)];
+%     end
+%     spectraClust = [spectraClust tempArray];
+%     tempArray = [];
+% end
+% spectraSzClust = size(spectraClust);
+% lower_range25_clust = median(spectraClust') - prctile(spectraClust', 25);
+% upper_range75_clust = prctile(spectraClust', 75) - median(spectraClust');
+% if spectraSzClust > 1
+%     errorbar(1:eleNum_all(1), median(spectraClust'), lower_range25_clust, upper_range75_clust, 'r','LineWidth',2)
+% else
+%     plot(spectraClust,'r','LineWidth',2)
+% end
+% title(sprintf('Average Spectra of Cluster %d of Signature %d',[(selectedClust) (selectedSig)]),'fontsize',14,'fontweight','b')
+% ylabel('Pixel Intensity','fontsize',12,'fontweight','b')
+% set(gca, 'XTick',1:spectraSzClust(1), 'XTickLabel',{'Fe' 'Cu' 'Zn' 'Ca' 'K' 'S' 'P' 'Cl' 'Si' 'Mn'})
+% ylim([0 max([prctile(spectraClust', 75), prctile(spectra', 75)])+1])
+% xlabel('Element','fontsize',12,'fontweight','b')
+% legend('Signature Average','Cluster Average','Location','NorthEast');
+% hold off
+% end
+% 
+% % Initialize interactive mode.
+% fprintf('\rInitializing interactive mode.\r')
+% toc
+% h = datacursormode(figHandle1);
+% datacursormode on
+% cursorInfo = [];
+% cursTrack = 0;
+% fprintf('\rClick on the image titled "Cluster Signatures" to select a signature\ror a cluster then press Return.  Dark blue is the background.\r')
+% while(1)
+%     pause   % Allow user time to select a point.  Press enter to execute
+%     cursorInfo = [cursorInfo, getCursorInfo(h)];
+%     cursTrack = cursTrack + 1;
+%     % Reassigning value to allSig because it keeps disappearing.
+%     if ~strcmp(mode, 'display')
+%         [tempBlank, allSig] = assignClust(xLength,yLength,new_sigList);
+%     end
+%     spectraClust(cursorInfo, cursTrack, xLength, yLength, sigIm, new_sigList, linearData_orig, allSig)
+% end
+[tempBlank, allSig] = assignClust(xLength,yLength,new_sigList);
 end

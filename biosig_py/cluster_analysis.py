@@ -7,6 +7,9 @@ the MATLAB program.
 import numpy as np
 from scipy.ndimage.measurements import label
 
+import biosignatures.signature_analysis as sa
+import biosignatures.utils as bsu
+
 def cluster_signatures(sig_out_in, bstrp_med, med_sig, p_thresh=0.05,
                        ele_order=np.array(["Fe", "Cu", "Zn", "Ca", "K", "S", "P", "Cl", "Si", "Mn"])):
     """
@@ -57,16 +60,24 @@ def cluster_sizes(allSig_mask):
         clust_sizes[clust_idx] = len(np.where(np.ravel(labels) == clust_num)[0])
         
     return clust_sizes, labels, numL
+    
+def clust_sigs(clust_num, separate_clusters, sig_map):
+    """
+    Find the signatures in each of the clusters.
+    """
+    clust_sig_list = []
+    for clust_idx in np.arange(1, clust_num): # Don't include the background so start at 1
+        clust_sig_map = sig_map[np.where(separate_clusters == clust_idx)]
+        clust_sig_list.append(np.unique(clust_sig_map))
+        
+    return clust_sig_list
        
 def classify_clusters(sig_map, separate_clusters, clust_num):
     """
     Code to automatically and empirically classify clusters.
     """
     # First find all the signatures within a cluster
-    clust_sig_list = []
-    for clust_idx in np.arange(1, clust_num): # Don't include the background so start at 1
-        clust_sig_map = sig_map[np.where(separate_clusters == clust_idx)]
-        clust_sig_list.append(np.unique(clust_sig_map))
+    clust_sig_list = clust_sigs(clust_num, separate_clusters, sig_map)
     
     # Compare the signatures from each cluster to each other to create classes
     # of clusters with similar signatures.
@@ -128,3 +139,53 @@ def classify_clusters(sig_map, separate_clusters, clust_num):
     homeless_clust = np.where(clust_track)
     
     return clust_class_list, homeless_clust, clust_sig_list
+    
+def clust_diff(sig1, sig2, lin_data, xLen=491, yLen=673, sz_diff=None):
+    """
+    A metric for the difference between the signatures found from two initial seed
+    locations.
+    """
+    all_sig1 = bsu.all_sig_mask(sig1)
+    all_sig2 = bsu.all_sig_mask(sig2)
+
+    clust_sizes1, labels1, numL1 = cluster_sizes(all_sig1)
+    clust_sizes2, labels2, numL2 = cluster_sizes(all_sig2)
+    
+    sig_map1 = bsu.signature_map(sig1, xLen, yLen)
+    sig_map2 = bsu.signature_map(sig2, xLen, yLen)
+    
+    # First find all the signatures within a cluster
+    clust_sig_lists = clust_sigs(numL1, labels1, sig_map1), clust_sigs(numL2, labels2, sig_map2)]
+    
+    clust_diffs_list = []
+    clust_diffs = np.zeros(len(clust_sig_lists[0]))
+    for clust in np.arange(1, len(clust_sig_lists[0])):
+        # Make new signature maps containing just the signatures from the desired cluster.
+        this_sig_map1 = []
+        this_sig_map2 = []
+        for sig in clust_sig_lists[0][clust]:
+            this_sig_map1.append(sig1[sig-1])
+            
+        for sig in clust_sig_lists[1][clust]:
+            this_sig_map2.append(sig2[sig-1])
+        
+        # Find the corresponding signatures in each image
+        cc_arr, sim_sig_arr, less_idx = sig_reliability(lin_data, this_sig_map1, this_sig_map2, sz_diff=sz_diff)
+        
+        if less_idx == 0:
+            more_idx = 1
+        else:
+            more_idx = 0
+        
+        clust_sig_diff = np.zeros(len(sim_sig_arr))
+        for l_idx, sim_idx in enumerate(sim_sig_arr):
+            clust_maps = [sig_map1[np.where(labels1 == clust)], sig_map2[np.where(labels2 == clust)]]
+            less_sig_amnt = len(np.where(clust_maps[less_idx] == clust_sig_lists[less_idx][clust][l_idx])[0])
+            sim_sig_amnt = len(np.where(clust_maps[more_idx] == clust_sig_lists[more_idx][clust][sim_idx])[0])
+            
+            clust_sig_diff[l_idx] = abs(less_sig_amnt - sim_sig_amnt)
+        
+        clust_diffs[clust] = np.sum(clust_sig_diff)
+        clust_diffs_list.append(clust_sig_diff)
+        
+    return clust_diffs, clust_diffs_list

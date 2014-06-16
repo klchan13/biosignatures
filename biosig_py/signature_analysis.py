@@ -84,10 +84,10 @@ def reclass(lin_data_alt, allSig, minReassignPix=115):
             new_sig_list[ref_idx][pix_sig_idx] = np.where(p_ref_arr == max(p_ref_arr))[0][0]
     
     # Now use some fancy indexing to find the misfits and prep the pixels
-    # for reassigment.
+    # for reassignment.
     reassign = list(np.arange(len(new_sig_list)))
-    for ai in np.arange(1, len(new_sig_list)):
-        where_misfits = np.where(new_sig_list[ai] != ai*np.ones(len(new_sig_list[ai])))
+    for ai in np.arange(len(new_sig_list)):
+        where_misfits = np.where(new_sig_list[ai]+1 != (ai+1)*np.ones(len(new_sig_list[ai])))
         misfits = new_sig_list[ai][where_misfits]
         for m_idx in np.arange(len(where_misfits[0])):
             if reassign[int(misfits[m_idx])].shape:
@@ -99,7 +99,7 @@ def reclass(lin_data_alt, allSig, minReassignPix=115):
     # Now add the misfits to their appropriate signature
     fin_sig_list = []
     for ai in np.arange(len(sigList)):
-        real_vox = np.where(new_sig_list[ai] == ai*np.ones(len(new_sig_list[ai])))
+        real_vox = np.where(new_sig_list[ai]+1 == (ai+1)*np.ones(len(new_sig_list[ai])))
         if reassign[ai].shape:
             fin_sig_list.append(np.squeeze(np.concatenate((sigList[ai][real_vox], reassign[ai]))))
         else:
@@ -144,12 +144,12 @@ def refine_reclass(sig_no_reclass, lin_data, err_thresh=0.065, minReassignPix=No
         
     return sigs, err_arr, itr
     
-def sig_reliability(lin_data_alt, sig_forwards, sig_backwards, sz_diff=0.4):
+def sig_reliability(lin_data_alt, sig_forwards, sig_backwards, sz_diff=None):
     """
     Measuring the reliability of the signature finding algorithm using Pearson's Correlation Coefficient.
     """
     sig_meds_forw = signature_medians(sig_forwards, lin_data_alt)
-    sig_meds_forw = signature_medians(sig_forwards, lin_data_alt)
+    sig_meds_back = signature_medians(sig_backwards, lin_data_alt)
 
     sig_forw_sz = np.zeros(len(sig_forwards))
     sig_back_sz = np.zeros(len(sig_backwards))
@@ -166,19 +166,24 @@ def sig_reliability(lin_data_alt, sig_forwards, sig_backwards, sz_diff=0.4):
     if (len(sig_forwards) < len(sig_backwards)) | (len(sig_forwards) == len(sig_backwards)):
         less_sigs = [sig_meds_forw, sig_forw_sz]
         more_sigs = [sig_meds_back, sig_back_sz]
+        less_sigs_idx = 0
     else:
         less_sigs = [sig_meds_back, sig_back_sz]
         more_sigs = [sig_meds_forw, sig_forw_sz]
+        less_sigs_idx = 1
         
     cc_arr = np.zeros(len(less_sigs[0]))
     sim_sig = np.zeros(len(less_sigs[0]))
-    iqr_diff_arr = np.zeros(len(less_sigs[0]))
     # Now find the reliability
     for less_idx in np.arange(len(less_sigs[0])):
         # Find signatures within more_sigs with comparable size to the current sig in less_sigs
         less_sz = less_sigs[1][less_idx]
-        idx = abs(less_sz*np.ones(len(more_sigs[1])) - more_sigs[1])/float(less_sz) < sz_diff
-        this_more_sig = more_sigs[0][idx]
+        if sz_diff != None:
+            idx = abs(less_sz*np.ones(len(more_sigs[1])) - more_sigs[1])/float(less_sz) < sz_diff
+            this_more_sig = more_sigs[0][idx]
+        else:
+            this_more_sig = more_sigs[0]
+            
         this_cc_arr = np.zeros(len(this_more_sig))
         
         # Find the signature in more_sig closest to the one in less_sigs
@@ -186,6 +191,9 @@ def sig_reliability(lin_data_alt, sig_forwards, sig_backwards, sz_diff=0.4):
             this_cc_arr[more_idx] = stats.pearsonr(less_sigs[0][less_idx], this_more_sig[more_idx])[0]
             
         cc_arr[less_idx] = max(this_cc_arr)
-        sim_sig[less_idx] = np.where(idx)[0][np.where(idx)[0][np.where(this_cc_arr == cc_arr[less_idx])]]
+        if sz_diff != None:
+            sim_sig[less_idx] = np.where(idx)[0][np.where(idx)[0][np.where(this_cc_arr == cc_arr[less_idx])]]
+        else:
+            sim_sig[less_idx] = np.where(this_cc_arr == cc_arr[less_idx])[0]
         
-    return cc_arr, sim_sig
+    return cc_arr, sim_sig, less_sigs_idx

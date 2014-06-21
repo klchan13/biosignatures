@@ -70,9 +70,9 @@ def sig_quartile(lin_data, percentile, sig_masks=None, sig_list=None):
     quartile = np.zeros((len(in_sigs), lin_data.shape[0]))
     for s_idx in np.arange(len(in_sigs)):
         if sig_masks != None:
-            this_sig = np.squeeze(signature(lin_data, s_idx, sig_masks=sig_masks)
+            this_sig = np.squeeze(signature(lin_data, s_idx, sig_masks=sig_masks))
         else:
-            this_sig = np.squeeze(signature(lin_data, s_idx, sig_list=sig_list)
+            this_sig = np.squeeze(signature(lin_data, s_idx, sig_list=sig_list))
         
         quartile[s_idx] = stats.scoreatpercentile(this_sig, percentile, axis=-1)
         
@@ -188,8 +188,8 @@ def sig_reliability(lin_data_alt, sig_forwards, sig_backwards, sz_diff=None):
     """
     Measuring the reliability of the signature finding algorithm using Pearson's Correlation Coefficient.
     """
-    sig_meds_forw = signature_medians(sig_forwards, lin_data_alt)
-    sig_meds_back = signature_medians(sig_backwards, lin_data_alt)
+    sig_meds_forw = signature_medians(lin_data_alt, sig_masks=sig_forwards)
+    sig_meds_back = signature_medians(lin_data_alt, sig_masks=sig_backwards)
     
     sig_forw_sz = np.zeros(len(sig_forwards))
     sig_back_sz = np.zeros(len(sig_backwards))

@@ -4,7 +4,7 @@ Useful tools for biosignature analyses.
 
 import numpy as np
 
-def signature_map(sig_masks, xLen, yLen):
+def signature_map(sig_masks, xLen=491, yLen=673):
     """
     Create a color-coded signature map.
     """

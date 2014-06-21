@@ -26,6 +26,18 @@ def all_sig_mask(sig_mask, xLen=491, yLen=673):
     aggre_sig_mask = np.reshape(aggre_sig_mask, (yLen, xLen))
     
     return aggre_sig_mask
+def sig_list_to_mask(sig_list, xLen=491, yLen=673):
+    """
+    Converts a signature list to a mask.
+    """
+    sig_masks = []
+    for sig in np.arange(len(sig_list)):
+        sigs_arr = np.zeros((1, xLen*yLen))
+        if np.squeeze(sig_list[sig]).shape:
+            sigs_arr[0, (np.squeeze(sig_list[sig]),)] = 1
+            sig_masks.append(sigs_arr)
+            
+    return sig_masks
 
 def pearsons_correlation_coeff(vector1, vector2):
     """

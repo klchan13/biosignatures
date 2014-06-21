@@ -14,7 +14,7 @@ def signature(lin_data, s_idx, sig_masks=None, sig_list=None):
     if sig_masks != None:
         return lin_data[:, np.where(np.squeeze(sig_masks[s_idx]))]
     else:
-        return lin_data[:, np.squeeze(sig_list[s_idx])]
+        return lin_data[:, sig_list[s_idx]]
     
 def signature_medians(lin_data, sig_masks=None, sig_list=None):
     """
@@ -32,7 +32,7 @@ def signature_medians(lin_data, sig_masks=None, sig_list=None):
             sig_len = len(np.where(np.squeeze(sig_masks[sig_idx]))[0])
             this_sig = np.squeeze(signature(lin_data, sig_idx, sig_masks=sig_masks))
         else:
-            sig_len = len(sig_list[sig_idx][0])
+            sig_len = len(sig_list[sig_idx])
             this_sig = np.squeeze(signature(lin_data, sig_idx, sig_list=sig_list))
         
         # Take the signatures as is instead of taking the median if there is only
@@ -77,6 +77,17 @@ def sig_quartile(lin_data, percentile, sig_masks=None, sig_list=None):
         quartile[s_idx] = stats.scoreatpercentile(this_sig, percentile, axis=-1)
         
     return quartile
+def reshape_sig_list(sig_list):
+    """
+    Reshapes the sig_list so it has the right size that can be indexed.
+    """
+    for idx in np.arange(len(sig_list)):
+        if np.squeeze(sig_list[idx]).shape:
+            sig_list[idx] = np.squeeze(sig_list[idx])
+        else:
+            sig_list[idx] = np.reshape(sig_list[idx], (1,))
+    
+    return sig_list
     
 def reclass(lin_data_alt, sigList=None, allSig=None, minReassignPix=115):
     """
@@ -89,6 +100,9 @@ def reclass(lin_data_alt, sigList=None, allSig=None, minReassignPix=115):
         sigList = []
         for idx in np.arange(len(allSig)):
             sigList.append(np.where(np.squeeze(allSig[idx]))[0])
+    else:
+        # Reshaping the signatures with only one pixel in them.
+        sigList = reshape_sig_list(sigList)
         
     new_sig_list = []
     if allSig != None:
@@ -105,7 +119,6 @@ def reclass(lin_data_alt, sigList=None, allSig=None, minReassignPix=115):
         for pix_sig_idx in np.arange(len(sigList[ref_idx])):
             pixel = sigList[ref_idx][pix_sig_idx]
             pix_sig = lin_data_alt[:, pixel]
-            
             # Keep track of the correlation between the current pixel signature
             # and the median of the other rough aggregate.
             p_ref_arr = np.zeros(len(sigList))
@@ -117,10 +130,13 @@ def reclass(lin_data_alt, sigList=None, allSig=None, minReassignPix=115):
                 # signatures and don't let pixels from larger signatures be
                 # assigned to the small signatures.  However, keep these
                 # signatures as they may be real.
-                if (minReassignPix is None) | ((len(sigList[in_idx]) > minReassignPix) | (in_idx == ref_idx)):
+                if (minReassignPix is not None) & (len(sigList[in_idx]) == 1):
+                    p_ref_arr[in_idx] = 0
+                elif (minReassignPix is None) | (len(sigList[in_idx]) > minReassignPix) | (in_idx == ref_idx):
                     p_ref_arr[in_idx] = bsu.pearsons_correlation_coeff(medians[in_idx], pix_sig)
                 else:
                     p_ref_arr[in_idx] = 0
+                        
             new_sig_list[ref_idx][pix_sig_idx] = np.where(p_ref_arr == max(p_ref_arr))[0][0]
     
     # Now use some fancy indexing to find the misfits and prep the pixels
@@ -132,7 +148,8 @@ def reclass(lin_data_alt, sigList=None, allSig=None, minReassignPix=115):
         for m_idx in np.arange(len(where_misfits[0])):
             if reassign[int(misfits[m_idx])].shape:
                 reassign[int(misfits[m_idx])] = np.concatenate((reassign[int(misfits[m_idx])],
-                                                               np.array([sigList[ai][where_misfits[0][m_idx]]])))
+                                                               np.array([sigList[ai][
+                                                               where_misfits[0][m_idx]]])))
             else:
                 reassign[int(misfits[m_idx])] = np.array([sigList[ai][where_misfits[0][m_idx]]])           
 
@@ -141,11 +158,17 @@ def reclass(lin_data_alt, sigList=None, allSig=None, minReassignPix=115):
     for ai in np.arange(len(sigList)):
         real_vox = np.where(new_sig_list[ai]+1 == (ai+1)*np.ones(len(new_sig_list[ai])))
         if reassign[ai].shape:
-            fin_sig_list.append(np.squeeze(np.concatenate((sigList[ai][real_vox], reassign[ai]))))
+            fin_sig_list.append(np.squeeze(np.concatenate((sigList[ai][real_vox],
+                                                                  reassign[ai]))))
         else:
             fin_sig_list.append(sigList[ai][real_vox])
-        
-    return fin_sig_list
+    
+    end_sig_list = []
+    for sig in np.arange(len(fin_sig_list)):
+        if len(fin_sig_list[sig]) > 0:
+            end_sig_list.append(fin_sig_list[sig])
+            
+    return end_sig_list
     
 def refine_reclass(sig_no_reclass, lin_data, err_thresh=0.065, minReassignPix=None):
     """

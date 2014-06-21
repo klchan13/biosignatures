@@ -155,22 +155,22 @@ def clust_diff(sig1, sig2, lin_data, xLen=491, yLen=673, sz_diff=None):
     sig_map2 = bsu.signature_map(sig2, xLen, yLen)
     
     # First find all the signatures within a cluster
-    clust_sig_lists = clust_sigs(numL1, labels1, sig_map1), clust_sigs(numL2, labels2, sig_map2)]
+    clust_sig_lists = [clust_sigs(numL1, labels1, sig_map1), clust_sigs(numL2, labels2, sig_map2)]
     
     clust_diffs_list = []
     clust_diffs = np.zeros(len(clust_sig_lists[0]))
-    for clust in np.arange(1, len(clust_sig_lists[0])):
+    for clust in np.arange(len(clust_sig_lists[0])):
         # Make new signature maps containing just the signatures from the desired cluster.
         this_sig_map1 = []
         this_sig_map2 = []
         for sig in clust_sig_lists[0][clust]:
-            this_sig_map1.append(sig1[sig-1])
+            this_sig_map1.append(sig1[int(sig-1)])
             
         for sig in clust_sig_lists[1][clust]:
-            this_sig_map2.append(sig2[sig-1])
+            this_sig_map2.append(sig2[int(sig-1)])
         
         # Find the corresponding signatures in each image
-        cc_arr, sim_sig_arr, less_idx = sig_reliability(lin_data, this_sig_map1, this_sig_map2, sz_diff=sz_diff)
+        cc_arr, sim_sig_arr, less_idx = sa.sig_reliability(lin_data, this_sig_map1, this_sig_map2, sz_diff=sz_diff)
         
         if less_idx == 0:
             more_idx = 1
@@ -179,7 +179,7 @@ def clust_diff(sig1, sig2, lin_data, xLen=491, yLen=673, sz_diff=None):
         
         clust_sig_diff = np.zeros(len(sim_sig_arr))
         for l_idx, sim_idx in enumerate(sim_sig_arr):
-            clust_maps = [sig_map1[np.where(labels1 == clust)], sig_map2[np.where(labels2 == clust)]]
+            clust_maps = [sig_map1[np.where(labels1 == clust+1)], sig_map2[np.where(labels2 == clust+1)]]
             less_sig_amnt = len(np.where(clust_maps[less_idx] == clust_sig_lists[less_idx][clust][l_idx])[0])
             sim_sig_amnt = len(np.where(clust_maps[more_idx] == clust_sig_lists[more_idx][clust][sim_idx])[0])
             

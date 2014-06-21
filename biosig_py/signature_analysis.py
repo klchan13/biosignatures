@@ -7,55 +7,95 @@ import numpy as np
 import scipy.stats.stats as stats
 import biosignatures.utils as bsu
 
-def signature(sig_masks, lin_data, s_idx):
+def signature(lin_data, s_idx, sig_masks=None, sig_list=None):
     """
     Find the desired signature's elemental values.
     """
-    return lin_data[:, np.where(np.squeeze(sig_masks[s_idx]))]
+    if sig_masks != None:
+        return lin_data[:, np.where(np.squeeze(sig_masks[s_idx]))]
+    else:
+        return lin_data[:, np.squeeze(sig_list[s_idx])]
     
-def signature_medians(sig_masks, lin_data):
+def signature_medians(lin_data, sig_masks=None, sig_list=None):
     """
     Find the signature medians.
     """
-    sig_meds = np.zeros((len(sig_masks), np.shape(lin_data)[0]))
-    for sig_idx in np.arange(len(sig_masks)):
-        sig_meds[sig_idx] = np.median(np.squeeze(signature(sig_masks,
-                                                 lin_data, sig_idx)),-1)
+    # What is the format the signatures are in?
+    if sig_masks != None:
+        in_sigs = sig_masks
+    else:
+        in_sigs = sig_list
+        
+    sig_meds = np.zeros((len(in_sigs), np.shape(lin_data)[0]))
+    for sig_idx in np.arange(len(in_sigs)):
+        if sig_masks != None:
+            sig_len = len(np.where(np.squeeze(sig_masks[sig_idx]))[0])
+            this_sig = np.squeeze(signature(lin_data, sig_idx, sig_masks=sig_masks))
+        else:
+            sig_len = len(sig_list[sig_idx][0])
+            this_sig = np.squeeze(signature(lin_data, sig_idx, sig_list=sig_list))
+        
+        # Take the signatures as is instead of taking the median if there is only
+        # one pixel.
+        if sig_len > 1:
+            sig_meds[sig_idx] = np.median(this_sig,-1)
+        else:
+            sig_meds[sig_idx] = this_sig
+                
     return sig_meds
     
-def sig_iqr(lin_data, sigs):
+def sig_iqr(lin_data, sig_masks=None, sig_list=None):
     """
     Evaluating the interquartile ranges for each element of each signature.
     """
-    q25s = sig_quartile(lin_data, sigs, 25)
-    q75s = sig_quartile(lin_data, sigs, 75)
+    if sig_masks != None:
+        q25s = sig_quartile(lin_data, 25, sig_masks=sig_masks)
+        q75s = sig_quartile(lin_data, 75, sig_masks=sig_masks)
+    else:
+        q25s = sig_quartile(lin_data, 25, sig_list=sig_list)
+        q75s = sig_quartile(lin_data, 75, sig_list=sig_list)    
     
     return q75s - q25s
     
-def sig_quartile(lin_data, sigs, percentile):
+def sig_quartile(lin_data, percentile, sig_masks=None, sig_list=None):
     """
     Evaluating the quartile for each element of each signature.
     """
-    quartile = np.zeros((len(sigs), lin_data.shape[0]))
-    for s_idx in np.arange(len(sigs)):
-        quartile[s_idx] = stats.scoreatpercentile(np.squeeze(signature(sigs, lin_data, s_idx)),
-                                                  percentile, axis=-1)
+    # What is the format the signatures are in?
+    if sig_masks != None:
+        in_sigs = sig_masks
+    else:
+        in_sigs = sig_list
+        
+    quartile = np.zeros((len(in_sigs), lin_data.shape[0]))
+    for s_idx in np.arange(len(in_sigs)):
+        if sig_masks != None:
+            this_sig = np.squeeze(signature(lin_data, s_idx, sig_masks=sig_masks)
+        else:
+            this_sig = np.squeeze(signature(lin_data, s_idx, sig_list=sig_list)
+        
+        quartile[s_idx] = stats.scoreatpercentile(this_sig, percentile, axis=-1)
         
     return quartile
     
-def reclass(lin_data_alt, allSig, minReassignPix=115):
+def reclass(lin_data_alt, sigList=None, allSig=None, minReassignPix=115):
     """
     For reclassifying over and over and over...until the end of time!
     (Or just until you have reduced the IQR as much as you can.)
     
     This does the main computation and is re-adapted from the MATLAB code.
     """
-    sigList = []
-    for idx in np.arange(len(allSig)):
-        sigList.append(np.where(np.squeeze(allSig[idx]))[0])
+    if sigList == None:
+        sigList = []
+        for idx in np.arange(len(allSig)):
+            sigList.append(np.where(np.squeeze(allSig[idx]))[0])
         
-    new_sig_list = []    
-    medians = signature_medians(allSig, lin_data_alt)
+    new_sig_list = []
+    if allSig != None:
+        medians = signature_medians(lin_data_alt, sig_masks=allSig)
+    else:
+        medians = signature_medians(lin_data_alt, sig_list=sigList)
+        
     for s_idx in np.arange(len(sigList)):
         new_sig_list.append(np.zeros(len(sigList[s_idx])))
     
@@ -150,7 +190,7 @@ def sig_reliability(lin_data_alt, sig_forwards, sig_backwards, sz_diff=None):
     """
     sig_meds_forw = signature_medians(sig_forwards, lin_data_alt)
     sig_meds_back = signature_medians(sig_backwards, lin_data_alt)
-
+    
     sig_forw_sz = np.zeros(len(sig_forwards))
     sig_back_sz = np.zeros(len(sig_backwards))
     
@@ -189,11 +229,11 @@ def sig_reliability(lin_data_alt, sig_forwards, sig_backwards, sz_diff=None):
         # Find the signature in more_sig closest to the one in less_sigs
         for more_idx in np.arange(len(this_more_sig)):
             this_cc_arr[more_idx] = stats.pearsonr(less_sigs[0][less_idx], this_more_sig[more_idx])[0]
-            
+
         cc_arr[less_idx] = max(this_cc_arr)
         if sz_diff != None:
-            sim_sig[less_idx] = np.where(idx)[0][np.where(idx)[0][np.where(this_cc_arr == cc_arr[less_idx])]]
+            sim_sig[less_idx] = np.where(idx)[0][np.where(this_cc_arr == cc_arr[less_idx])]
         else:
-            sim_sig[less_idx] = np.where(this_cc_arr == cc_arr[less_idx])[0]
+            sim_sig[less_idx] = np.where(this_cc_arr == max(this_cc_arr))[0]
         
     return cc_arr, sim_sig, less_sigs_idx

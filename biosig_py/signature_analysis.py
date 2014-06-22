@@ -269,9 +269,9 @@ def reclass_multi_data(data_sets, xLen=491, yLen=673, max_itr=25, minReassignPix
     all_masks_list = []
     for data in data_sets:
         # Initial reclassification after data generation.
-        rand_reclass_masks = bsu.sig_list_to_mask(sa.reclass(lin_data_alt,
-                                                             sigList=data,
-                                           minReassignPix=minReassignPix))
+        rand_reclass_masks = bsu.sig_list_to_mask(reclass(lin_data_alt,
+                                                          sigList=data,
+                                        minReassignPix=minReassignPix))
         
         # Initialize an array to include all the masks from the reassignment.
         # After the first relclassification, all the 1 pixel signatures should
@@ -279,7 +279,7 @@ def reclass_multi_data(data_sets, xLen=491, yLen=673, max_itr=25, minReassignPix
         all_masks = np.zeros((max_itr, len(rand_reclass_masks), xLen*yLen))
         for itr in np.arange(max_itr):
             # Reclassify and change from signature list to mask.
-            rand_reclass_masks = bsu.sig_list_to_mask(sa.reclass(lin_data_alt,
+            rand_reclass_masks = bsu.sig_list_to_mask(reclass(lin_data_alt,
                                                allSig=rand_reclass_masks,
                                                minReassignPix=minReassignPix))
             all_masks[itr] = np.squeeze(np.array(rand_reclass_masks))

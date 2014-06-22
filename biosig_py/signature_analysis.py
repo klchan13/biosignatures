@@ -269,11 +269,13 @@ def reclass_multi_data(data_sets, xLen=491, yLen=673, max_itr=25, minReassignPix
     
     This takes a while, so keep checking the progress bar.
     """
+    t1 = time.time()
     all_masks_list = []
-    for data in data_sets:
+    for d_idx, data in enumerate(data_sets):
         # Initial reclassification after data generation.
         # Note: rand_reclass is in sig list form.
-        sys.stdout.write('\r' + "Reclassification %s for data set %s"%(1, d_idx+1))
+        t2 = time.time()
+        sys.stdout.write('\r' + "Reclassification %s for data set %s.  Elapsed time: %s mins"%(1, d_idx+1,(t2-t1)/60.))
         sys.stdout.flush() 
         rand_reclass = sa.reclass(lin_data_alt, sigList=data,
                                   minReassignPix=minReassignPix)
@@ -283,7 +285,8 @@ def reclass_multi_data(data_sets, xLen=491, yLen=673, max_itr=25, minReassignPix
         # be gone and the number of signatures should be constant.
         all_masks = []
         for itr in np.arange(max_itr):
-            sys.stdout.write('\r' + "Reclassification %s for data set %s"%(itr+2, d_idx+1))
+            t2 = time.time()
+            sys.stdout.write('\r' + "Reclassification %s for data set %s.  Elapsed time: %s mins"%(itr+2, d_idx+1,(t2-t1)/60.))
             sys.stdout.flush() 
             
             # Reclassify and change from signature list to mask.
@@ -300,8 +303,9 @@ def reclass_multi_data(data_sets, xLen=491, yLen=673, max_itr=25, minReassignPix
             for d_inds, di in enumerate(itertools.combinations(np.arange(len(data_sets)), 2)):
                 # Find the cluster differences between mask lists from different data sets
                 # at the same iteration of reassignment.
-                sys.stdout.write('\r' + "Finding differences of reclassification %s for data pairs %s of %s"%(itr, d_inds+1,
-                                                                                            bsu.nchoosek(len(data_sets),2)))
+                t2 = time.time()
+                sys.stdout.write('\r' + "Finding differences of reclassification %s for data pairs %s of %s.  Elapsed time: %s mins"%(itr,
+                                                                                    d_inds+1, bsu.nchoosek(len(data_sets),2),(t2-t1)/60.))
                 sys.stdout.flush()
                 clust_diffs, _ = ca.clust_diff(bsu.sig_list_to_mask(all_masks_list[di[0]][itr]),
                                                bsu.sig_list_to_mask(all_masks_list[di[1]][itr]),

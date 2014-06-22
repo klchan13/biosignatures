@@ -6,6 +6,7 @@ the MATLAB program.
 import numpy as np
 import scipy.stats.stats as stats
 import biosignatures.utils as bsu
+import sys
 
 def signature(lin_data, s_idx, sig_masks=None, sig_list=None):
     """
@@ -265,24 +266,30 @@ def reclass_multi_data(data_sets, xLen=491, yLen=673, max_itr=25, minReassignPix
     """
     For reclassifying multiple data sets at once and looking at the error between them
     at different iterations.
+    
+    This takes a while, so keep checking the progress bar.
     """
     all_masks_list = []
     for data in data_sets:
         # Initial reclassification after data generation.
-        rand_reclass_masks = bsu.sig_list_to_mask(reclass(lin_data_alt,
-                                                          sigList=data,
-                                        minReassignPix=minReassignPix))
+        # Note: rand_reclass is in sig list form.
+        sys.stdout.write('\r' + "Reclassification %s for data set %s"%(1, d_idx+1))
+        sys.stdout.flush() 
+        rand_reclass = sa.reclass(lin_data_alt, sigList=data,
+                                  minReassignPix=minReassignPix)
         
         # Initialize an array to include all the masks from the reassignment.
-        # After the first relclassification, all the 1 pixel signatures should
+        # After the first reclassification, all the 1 pixel signatures should
         # be gone and the number of signatures should be constant.
-        all_masks = np.zeros((max_itr, len(rand_reclass_masks), xLen*yLen))
+        all_masks = []
         for itr in np.arange(max_itr):
+            sys.stdout.write('\r' + "Reclassification %s for data set %s"%(itr+2, d_idx+1))
+            sys.stdout.flush() 
+            
             # Reclassify and change from signature list to mask.
-            rand_reclass_masks = bsu.sig_list_to_mask(reclass(lin_data_alt,
-                                               allSig=rand_reclass_masks,
-                                               minReassignPix=minReassignPix))
-            all_masks[itr] = np.squeeze(np.array(rand_reclass_masks))
+            rand_reclass = reclass(lin_data_alt, sigList=rand_reclass,
+                                        minReassignPix=minReassignPix)
+            all_masks.append(np.squeeze(np.array(rand_reclass)))
         
         # Save the masks for this data set.
         all_masks_list.append(all_masks)
@@ -290,11 +297,14 @@ def reclass_multi_data(data_sets, xLen=491, yLen=673, max_itr=25, minReassignPix
         aggre_clust_diffs = []
         med_clust_diffs = np.zeros(max_itr)
         for itr in np.arange(max_itr):   
-            for d_inds, di in enumerate(itertools.combinations(np.arange(len(data_set)), 2)):
+            for d_inds, di in enumerate(itertools.combinations(np.arange(len(data_sets)), 2)):
                 # Find the cluster differences between mask lists from different data sets
                 # at the same iteration of reassignment.
-                clust_diffs, _ = ca.clust_diff([all_masks_list[d_inds[0]][itr]],
-                                               [all_masks_list[d_inds[1]][itr]],
+                sys.stdout.write('\r' + "Finding differences of reclassification %s for data pairs %s of %s"%(itr, d_inds+1,
+                                                                                            bsu.nchoosek(len(data_sets),2)))
+                sys.stdout.flush()
+                clust_diffs, _ = ca.clust_diff(bsu.sig_list_to_mask(all_masks_list[di[0]][itr]),
+                                               bsu.sig_list_to_mask(all_masks_list[di[1]][itr]),
                                                lin_data_alt)
                 if d_inds == 0:
                     # Initialize the array

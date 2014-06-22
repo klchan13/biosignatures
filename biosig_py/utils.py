@@ -38,6 +38,21 @@ def sig_list_to_mask(sig_list, xLen=491, yLen=673):
             sig_masks.append(sigs_arr)
             
     return sig_masks
+    
+def nchoosek(n,k):
+    """
+    Finds all the number of unique combinations from choosing groups of k from a pool of n.
+    
+    Parameters
+    ----------
+    n: int
+        Number of items in the pool you are choosing from
+    k: int
+        Size of the groups you are choosing from the pool
+        
+    n!/(k!*(n-k)!)
+    """
+    return f(n)/f(k)/f(n-k)
 
 def pearsons_correlation_coeff(vector1, vector2):
     """

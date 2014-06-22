@@ -93,7 +93,7 @@ def reshape_sig_list(sig_list):
 def reclass(lin_data_alt, sigList=None, allSig=None, minReassignPix=115):
     """
     For reclassifying over and over and over...until the end of time!
-    (Or just until you have reduced the IQR as much as you can.)
+    (Or just until you have minimized the drift problem as much as you can.)
     
     This does the main computation and is re-adapted from the MATLAB code.
     """
@@ -262,12 +262,12 @@ def sig_reliability(lin_data_alt, sig_forwards, sig_backwards, sz_diff=None):
         
     return cc_arr, sim_sig, less_sigs_idx
 
-def reclass_multi_data(data_sets, xLen=491, yLen=673, max_itr=25, minReassignPix=10):
+def reclass_multi_data(data_sets, xLen=491, yLen=673, max_itr=25, minReassignPix=10, save=True):
     """
     For reclassifying multiple data sets at once and looking at the error between them
     at different iterations.
     
-    This takes a while, so keep checking the progress bar.
+    This takes a while, so keep checking the progress bar.  Maybe grab a coffee or two.
     """
     t1 = time.time()
     all_masks_list = []
@@ -296,28 +296,33 @@ def reclass_multi_data(data_sets, xLen=491, yLen=673, max_itr=25, minReassignPix
         
         # Save the masks for this data set.
         all_masks_list.append(all_masks)
+        if save == True:
+            np.save("sig_list_d%s.npy"%d_idx, all_masks)        
 
-        aggre_clust_diffs = []
-        med_clust_diffs = np.zeros(max_itr)
-        for itr in np.arange(max_itr):   
-            for d_inds, di in enumerate(itertools.combinations(np.arange(len(data_sets)), 2)):
-                # Find the cluster differences between mask lists from different data sets
-                # at the same iteration of reassignment.
-                t2 = time.time()
-                sys.stdout.write('\r' + "Finding differences of reclassification %s for data pairs %s of %s.  Elapsed time: %s mins"%(itr,
-                                                                                    d_inds+1, bsu.nchoosek(len(data_sets),2),(t2-t1)/60.))
-                sys.stdout.flush()
-                clust_diffs, _ = ca.clust_diff(bsu.sig_list_to_mask(all_masks_list[di[0]][itr]),
-                                               bsu.sig_list_to_mask(all_masks_list[di[1]][itr]),
-                                               lin_data_alt)
-                if d_inds == 0:
-                    # Initialize the array
-                    clust_diffs_arr = clust_diffs
-                else:
-                    clust_diffs_arr = np.concatenate((clust_diffs_arr, clust_diffs))
-            
-            # Save the cluster differences and their medians.
-            aggre_clust_diffs.append(clust_diffs_arr)
-            med_clust_diffs[itr] = np.median(clust_diffs_arr)
+    aggre_clust_diffs = []
+    med_clust_diffs = np.zeros(max_itr)
+    for itr in np.arange(max_itr):   
+        for d_inds, di in enumerate(itertools.combinations(np.arange(len(data_sets)), 2)):
+            # Find the cluster differences between mask lists from different data sets
+            # at the same iteration of reassignment.
+            t2 = time.time()
+            sys.stdout.write('\r' + "Finding differences of reclassification %s for data pairs %s of %s.  Elapsed time: %s mins"%(itr,
+                                                                                d_inds+1, bsu.nchoosek(len(data_sets),2),(t2-t1)/60.))
+            sys.stdout.flush()
+            clust_diffs, _ = ca.clust_diff(bsu.sig_list_to_mask(all_masks_list[di[0]][itr]),
+                                           bsu.sig_list_to_mask(all_masks_list[di[1]][itr]),
+                                           lin_data_alt)
+            if d_inds == 0:
+                # Initialize the array
+                clust_diffs_arr = clust_diffs
+            else:
+                clust_diffs_arr = np.concatenate((clust_diffs_arr, clust_diffs))
+        
+    # Save the cluster differences and their medians.
+    aggre_clust_diffs.append(clust_diffs_arr)
+    med_clust_diffs[itr] = np.median(clust_diffs_arr)
+    if save == True:
+        np.save("aggre_clust_diffs.npy", aggre_clust_diffs)
+        np.save("med_clust_diffs.npy", med_clust_diffs)
     
     return all_masks_list, aggre_clust_diffs, med_clust_diffs

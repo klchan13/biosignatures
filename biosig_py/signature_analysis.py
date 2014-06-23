@@ -7,6 +7,7 @@ import numpy as np
 import scipy.stats.stats as stats
 import biosignatures.utils as bsu
 import sys
+import time
 
 def signature(lin_data, s_idx, sig_masks=None, sig_list=None):
     """
@@ -273,10 +274,20 @@ def reclass_multi_data(data_sets, xLen=491, yLen=673, max_itr=25, minReassignPix
     all_masks_list = []
     for d_idx, data in enumerate(data_sets):
         # Initial reclassification after data generation.
-        # Note: rand_reclass is in sig list form.
+        # Note: rand_reclass is in sig list form to save memory.
+        
+        # Change from minutes to hours if current run time is longer than an hour
+        if ((t2-t1)/60.) > 60.:
+            n = 60.
+            units = "hours"
+        else:
+            n = 1.
+            units = "mins"
+            
         t2 = time.time()
-        sys.stdout.write('\r' + "Reclassification %s for data set %s.  Elapsed time: %s mins"%(1, d_idx+1,(t2-t1)/60.))
+        sys.stdout.write('\r' + "Reclassification %s for data set %s.  Elapsed time: %s %s"%(1, d_idx+1,(t2-t1)/(60.*n), units))
         sys.stdout.flush() 
+        
         rand_reclass = sa.reclass(lin_data_alt, sigList=data,
                                   minReassignPix=minReassignPix)
         
@@ -306,9 +317,19 @@ def reclass_multi_data(data_sets, xLen=491, yLen=673, max_itr=25, minReassignPix
             # Find the cluster differences between mask lists from different data sets
             # at the same iteration of reassignment.
             t2 = time.time()
-            sys.stdout.write('\r' + "Finding differences of reclassification %s for data pairs %s of %s.  Elapsed time: %s mins"%(itr,
-                                                                                d_inds+1, bsu.nchoosek(len(data_sets),2),(t2-t1)/60.))
+            
+            # Change from minutes to hours if current run time is longer than an hour
+            if ((t2-t1)/60.) > 60.:
+                n = 60.
+                units = "hours"
+            else:
+                n = 1.
+                units = "mins"
+                
+            sys.stdout.write('\r' + "Finding differences of reclassification %s for data pairs %s of %s.  Elapsed time: %s %s"%(itr,
+                                                                        d_inds+1, bsu.nchoosek(len(data_sets),2),(t2-t1)/60., units))
             sys.stdout.flush()
+            
             clust_diffs, _ = ca.clust_diff(bsu.sig_list_to_mask(all_masks_list[di[0]][itr]),
                                            bsu.sig_list_to_mask(all_masks_list[di[1]][itr]),
                                            lin_data_alt)

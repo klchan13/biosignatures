@@ -3,6 +3,7 @@ Useful tools for biosignature analyses.
 """
 
 import numpy as np
+from math import factorial as f
 
 def signature_map(sig_masks, xLen=491, yLen=673):
     """

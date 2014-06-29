@@ -85,6 +85,7 @@ def classify_clusters(sig_map, separate_clusters, clust_num):
     clust_class_list = []
     # For tracking if a cluster is already classified, non-zero if not already classified
     clust_track = np.arange(len(clust_sig_list))
+    clust_class_arr = 0
     for sigs1_idx, sigs1 in enumerate(clust_track):
         if (sigs1 != 0) | (sigs1_idx == 0):
             for sigs2 in clust_track[(sigs1 + 1):]:
@@ -101,39 +102,40 @@ def classify_clusters(sig_map, separate_clusters, clust_num):
                                 clust_class_arr = np.concatenate((clust_class_arr, np.array([sigs2])))
                             clust_track[sigs1] = 0
                             clust_track[sigs2] = 0
-                    elif abs(len(clust_sig_list[sigs1]) - len(clust_sig_list[sigs2])) == 1:
-                        # For unequal number of sigs in each cluster:
-                        # Find which cluster has more signatures.
-                        if len(clust_sig_list[sigs1]) - len(clust_sig_list[sigs2]):
-                            less_sigs = sigs1
-                            more_sigs = sigs2
-                        else:
-                            less_sigs = sigs2
-                            more_sigs = sigs1
+                    # elif abs(len(clust_sig_list[sigs1]) - len(clust_sig_list[sigs2])) == 1:
+                        # # For unequal number of sigs in each cluster:
+                        # # Find which cluster has more signatures.
+                        # if len(clust_sig_list[sigs1]) - len(clust_sig_list[sigs2]):
+                            # less_sigs = sigs1
+                            # more_sigs = sigs2
+                        # else:
+                            # less_sigs = sigs2
+                            # more_sigs = sigs1
                         
-                        # Check to see if the signature with less signatures share all its signatures
-                        # With the cluster with more signatures:
-                        sig_compare = np.zeros(len(clust_sig_list[less_sigs]))
-                        for sig_idx, this_sig in enumerate(clust_sig_list[less_sigs]):
-                            if this_sig in clust_sig_list[more_sigs]:
-                                sig_compare[sig_idx] = 1
+                        # # Check to see if the signature with less signatures share all its signatures
+                        # # With the cluster with more signatures:
+                        # sig_compare = np.zeros(len(clust_sig_list[less_sigs]))
+                        # for sig_idx, this_sig in enumerate(clust_sig_list[less_sigs]):
+                            # if this_sig in clust_sig_list[more_sigs]:
+                                # sig_compare[sig_idx] = 1
                         
-                        # Add to the same class if they do, and update tracking array
-                        if all(sig_compare):
-                            if count == 0:
-                                clust_class_arr = np.array([sigs1, sigs2])
-                                count = count + 1
-                            else:
-                                clust_class_arr = np.concatenate((clust_class_arr, np.array([sigs2])))
+                        # # Add to the same class if they do, and update tracking array
+                        # if all(sig_compare):
+                            # if count == 0:
+                                # clust_class_arr = np.array([sigs1, sigs2])
+                                # count = count + 1
+                            # else:
+                                # clust_class_arr = np.concatenate((clust_class_arr, np.array([sigs2])))
                             
-                            clust_track[sigs1] = 0
-                            clust_track[sigs2] = 0
+                            # clust_track[sigs1] = 0
+                            # clust_track[sigs2] = 0
                             
             count = 0
-            if clust_class_list == []:
-                clust_class_list.append(clust_class_arr)
-            elif clust_class_list[len(clust_class_list)-1] is not clust_class_arr:
-                clust_class_list.append(clust_class_arr)
+            if np.shape(clust_class_arr):
+                if clust_class_list == []:
+                    clust_class_list.append(clust_class_arr)
+                elif clust_class_list[len(clust_class_list)-1] is not clust_class_arr:
+                    clust_class_list.append(clust_class_arr)
             
     # Find the homeless clusters:
     homeless_clust = np.where(clust_track)

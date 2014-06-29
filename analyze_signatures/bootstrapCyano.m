@@ -1,6 +1,6 @@
-function [matSig_pairs, p_array] = bootstrapCyano(linearData, allSig, k)
+function [matSig_pairs, p_array] = bootstrapCyano(linearData, allSig_pre, k)
 % Kimberly Chan
-% Last edited 6/22/13
+% Last edited 6/28/14
 %
 % This program boostraps the different signatures to confirm that
 % differences between the groups are statistically significant
@@ -20,19 +20,32 @@ function [matSig_pairs, p_array] = bootstrapCyano(linearData, allSig, k)
 % p_array: 2 dimensional array
 %       An array with all the different p values between signatures at each
 %       pair of elements.
+tic
+
+% If allSig_pre is not in a cell array, make it one.
+if isfloat(allSig_pre)
+    allSig = {};
+    for idx = 1:size(allSig_pre,1)
+        allSig{idx} = reshape(allSig_pre(idx,:,:),1,size(allSig_pre,3));
+    end
+    
+elseif iscell(allSig_pre)
+    allSig = allSig_pre;
+else
+    error('allSig needs to be a cell array or a double.')
+end
 
 % Find all possible pairs of signatures using n choose k
 numSigs = 1:length(allSig);
 matSig_pairs = nchoosek(numSigs, 2);
 
 % Find size of linear data to get number of elements
-szEleNum = size(linearData);
-idx_eleNum = 1:szEleNum(1);
+idx_eleNum = size(linearData, 1);
 
 p_array = [];
 for sp = 1:length(matSig_pairs)
     tempArray = [];
-    for en = idx_eleNum
+    for en = 1:idx_eleNum
         % Find the populations corresponding to each of the signatures
         pop1 = linearData(en,find(allSig{matSig_pairs(sp, 1)}));
         pop2 = linearData(en,find(allSig{matSig_pairs(sp, 2)}));
@@ -52,6 +65,7 @@ for sp = 1:length(matSig_pairs)
         m1 = bootstrp(k, @median, [pop1, pop2]);
         m2 = bootstrp(k, @median, [pop1, pop2]);
         fprintf('\rBootstrapping element %d of pair %d of %d pairs.\r',[en, sp, length(matSig_pairs)])
+        toc
         
         % Find the actual mean and find p value of the difference in means
         d_empirical = median(sa) - median(sb);

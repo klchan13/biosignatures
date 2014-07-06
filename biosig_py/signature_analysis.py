@@ -244,7 +244,7 @@ def sig_reliability(lin_data_alt, sig_forwards, sig_backwards, sz_diff=None):
         # Find signatures within more_sigs with comparable size to the current sig in less_sigs
         less_sz = less_sigs[1][less_idx]
         if sz_diff != None:
-            idx = abs(less_sz*np.ones(len(more_sigs[1])) - more_sigs[1])/float(less_sz) < sz_diff
+            idx = abs(less_sz - more_sigs[1])/float(less_sz) < sz_diff
             this_more_sig = more_sigs[0][idx]
         else:
             this_more_sig = more_sigs[0]
@@ -253,8 +253,8 @@ def sig_reliability(lin_data_alt, sig_forwards, sig_backwards, sz_diff=None):
         
         # Find the signature in more_sig closest to the one in less_sigs
         for more_idx in np.arange(len(this_more_sig)):
-            this_cc_arr[more_idx] = stats.pearsonr(less_sigs[0][less_idx], this_more_sig[more_idx])[0]
-
+            this_cc_arr[more_idx] = bsu.pearsons_correlation_coeff(less_sigs[0][less_idx], this_more_sig[more_idx])#[0] stats.pearsonr
+        
         cc_arr[less_idx] = max(this_cc_arr)
         if sz_diff != None:
             sim_sig[less_idx] = np.where(idx)[0][np.where(this_cc_arr == cc_arr[less_idx])]
@@ -262,6 +262,92 @@ def sig_reliability(lin_data_alt, sig_forwards, sig_backwards, sz_diff=None):
             sim_sig[less_idx] = np.where(this_cc_arr == max(this_cc_arr))[0]
         
     return cc_arr, sim_sig, less_sigs_idx
+    
+def twin_sigs(lin_data_alt, sig1, sig2, sz_diff=None):
+    """
+    Finding twin signatures across different seeding locations for determining
+    signature error.
+    """
+    import scipy.stats.stats as stats
+    
+    count = 0
+    # Initialize with a rough estimation of what the twin signatures are and
+    # their corresponding correlation.  This can result in two different
+    # signatures having the same twin signatures though which is not
+    # physically possible.
+    cc_arr, sim_sig, orig_less_sigs_idx = sig_reliability(lin_data_alt,
+                                                          sig1, sig2,
+                                                          sz_diff=sz_diff)
+    sig_list = [sig1, sig2]
+    twin_sigs = []
+    cc_twins = []
+    
+    # Prepare a mask the length of both original signatures for
+    # tracking purposes.
+    more_inds_mask = np.ones(len(np.arange(len(sig_list[
+                               1-orig_less_sigs_idx]))))
+    less_inds_mask = np.ones(len(np.copy(np.arange(len(sig_list[
+                                        orig_less_sigs_idx])))))
+    
+    # Run this loop as long as there are no more repeats of signatures
+    # of the similar signatures array.
+    while stats.mode(sim_sig)[1] > 1:
+        if count == 0:
+            count = count + 1
+            less_sigs_idx = np.copy(orig_less_sigs_idx)
+        elif count > 0:
+            # Find the reliability and twin sigs of the reduced arrays
+            cc_arr, sim_sig, less_sigs_idx = sig_reliability(lin_data_alt,
+                                                             new_sig_list1,
+                                                             new_sig_list2,
+                                                             sz_diff=sz_diff)
+
+        new_sig_list1 = []
+        new_sig_list2 = []
+        
+        # Find the signature that's repeated and reduce the cc_arr to only
+        # contain the rows where the repeat occurs.
+        red_repeat_sig = int(stats.mode(sim_sig)[0])
+        repeated_sig = np.where(more_inds_mask)[0][red_repeat_sig]
+        
+        more_inds_mask[repeated_sig] = 0 # Update more sigs tracking array
+        red_cc_arr = cc_arr[np.where(sim_sig == red_repeat_sig)]
+        
+        # Find the signature of the lesser sigs that has the highest CC
+        # with the repeated sig
+        twin_to_rep_bool = cc_arr == np.max(red_cc_arr)
+        cc_twins.append(cc_arr[np.where(twin_to_rep_bool)])
+        
+        where_twin_mask = np.where(less_inds_mask)[0][twin_to_rep_bool]
+        twin_sigs.append(np.array([where_twin_mask[0],
+                                   repeated_sig])[..., None])
+        less_inds_mask[where_twin_mask] = 0
+
+        # Find the reliability and twin sigs of the reduced arrays
+        for sig_idx in np.where(less_inds_mask)[0]:
+            new_sig_list1.append(sig_list[less_sigs_idx][sig_idx])
+        
+        for sig_idx in np.where(more_inds_mask)[0]:
+            new_sig_list2.append(sig_list[1-less_sigs_idx][sig_idx])
+    
+    # Add the rest of the signatures that don't have duplicates
+    # within sim_sig to the twin sig array.
+    if count == 0: # This means there were no twin sigs to begin with
+        less_sigs_idx = np.copy(orig_less_sigs_idx)
+        idx = None
+    else:
+        cc_arr, sim_sig, _ = sig_reliability(lin_data_alt, new_sig_list1,
+                                         new_sig_list2, sz_diff=sz_diff)
+        idx = sim_sig.astype(int)
+        
+    twin_sigs.append(np.concatenate((np.where(less_inds_mask)[0][None],
+                                     np.squeeze(np.where(more_inds_mask)
+                                                      [0][idx])[None])))
+    cc_twins.append(cc_arr)
+    cc_twins_arr = np.concatenate(cc_twins)
+    twin_sigs_arr = np.concatenate(twin_sigs, -1)
+    
+    return cc_twins_arr, twin_sigs_arr, orig_less_sigs_idx
 
 def reclass_multi_data(data_sets, xLen=491, yLen=673, max_itr=25, minReassignPix=10, save=True):
     """

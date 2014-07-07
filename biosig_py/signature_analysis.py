@@ -397,6 +397,7 @@ def reclass_multi_data(data_sets, xLen=491, yLen=673, max_itr=25, minReassignPix
         # Note: rand_reclass is in sig list form to save memory.
         
         # Change from minutes to hours if current run time is longer than an hour
+        t2 = time.time()
         if ((t2-t1)/60.) > 60.:
             n = 60.
             units = "hours"
@@ -404,13 +405,9 @@ def reclass_multi_data(data_sets, xLen=491, yLen=673, max_itr=25, minReassignPix
             n = 1.
             units = "mins"
             
-        t2 = time.time()
         sys.stdout.write('\r' + "Reclassification %s for data set %s.  Elapsed time: %s %s"%(1, d_idx+1,(t2-t1)/(60.*n), units))
         sys.stdout.flush() 
-        
-        rand_reclass = sa.reclass(lin_data_alt, sigList=data,
-                                  minReassignPix=minReassignPix)
-        all_masks.append(np.squeeze(np.array(rand_reclass)))
+
         # Initialize an array to include all the masks from the reassignment.
         # After the first reclassification, all the 1 pixel signatures should
         # be gone and the number of signatures should be constant.

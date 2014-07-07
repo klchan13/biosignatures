@@ -348,6 +348,40 @@ def twin_sigs(lin_data_alt, sig1, sig2, sz_diff=None):
     twin_sigs_arr = np.concatenate(twin_sigs, -1)
     
     return cc_twins_arr, twin_sigs_arr, orig_less_sigs_idx
+    
+def sig_diffs(lin_data_alt, sig1, sig2, sz_diff=None):
+    """
+    Error metric of signatures groups found using different signature
+    classification algorithms.
+    """
+    sig_map1 = bsu.signature_map(sig1)
+    sig_map2 = bsu.signature_map(sig2)
+    cc_twins, twin_sigs_fin, less_sigs_idx = twin_sigs(lin_data_alt, sig1, sig2)
+    sig_map_list = [sig_map1, sig_map2]
+    
+    all_sigs_mask = bsu.all_sig_mask(sig1)
+    coords = np.where(all_sigs_mask)
+    err = 0
+    diff_map = np.zeros(sig_map1.shape)
+    
+    # For all the voxels considered biological, check every voxel to see if the 
+    # signature in one image corresponds to what is considered it's twin signature
+    # in the second image.  If not, it's pixel is added to the running error total.
+    for c_idx in np.arange(np.sum(all_sigs_mask)):
+        this_coord = (coords[0][c_idx], coords[1][c_idx])
+        this_sig1 = sig_map_list[less_sigs_idx][this_coord] - 1
+        if (sig_map_list[1 - less_sigs_idx][this_coord] - 1 !=
+            twin_sigs_fin[1][np.where(twin_sigs_fin[0] == this_sig1)]):
+            err = err + 1
+            # For display purposes: 2 is error
+            diff_map[this_coord] = 2
+        else:
+            # ...and 1 is considered no error (the signature in the 
+            # voxel in image 1 does not have its corresponding twin
+            # signature in the same voxel in image 2)
+            diff_map[this_coord] = 1
+            
+    return err, diff_map
 
 def reclass_multi_data(data_sets, xLen=491, yLen=673, max_itr=25, minReassignPix=10, save=True):
     """
@@ -376,7 +410,7 @@ def reclass_multi_data(data_sets, xLen=491, yLen=673, max_itr=25, minReassignPix
         
         rand_reclass = sa.reclass(lin_data_alt, sigList=data,
                                   minReassignPix=minReassignPix)
-        
+        all_masks.append(np.squeeze(np.array(rand_reclass)))
         # Initialize an array to include all the masks from the reassignment.
         # After the first reclassification, all the 1 pixel signatures should
         # be gone and the number of signatures should be constant.

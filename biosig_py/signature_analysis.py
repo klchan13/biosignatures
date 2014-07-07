@@ -407,12 +407,16 @@ def reclass_multi_data(data_sets, xLen=491, yLen=673, max_itr=25, minReassignPix
             
         sys.stdout.write('\r' + "Reclassification %s for data set %s.  Elapsed time: %s %s"%(1, d_idx+1,(t2-t1)/(60.*n), units))
         sys.stdout.flush() 
-
+        
+        all_masks = []
+        rand_reclass = reclass(lin_data_alt, sigList=data,
+                               minReassignPix=minReassignPix)
+        all_masks.append(np.squeeze(np.array(rand_reclass)))
         # Initialize an array to include all the masks from the reassignment.
         # After the first reclassification, all the 1 pixel signatures should
         # be gone and the number of signatures should be constant.
-        all_masks = []
-        for itr in np.arange(max_itr):
+
+        for itr in np.arange(1, max_itr):
             t2 = time.time()
             sys.stdout.write('\r' + "Reclassification %s for data set %s.  Elapsed time: %s mins"%(itr+2, d_idx+1,(t2-t1)/60.))
             sys.stdout.flush() 
@@ -448,9 +452,9 @@ def reclass_multi_data(data_sets, xLen=491, yLen=673, max_itr=25, minReassignPix
                                                                         d_inds+1, bsu.nchoosek(len(data_sets),2),(t2-t1)/60., units))
             sys.stdout.flush()
             
-            sig_diff, diff_map = ca.sig_diffs(lin_data_alt,
-                                              bsu.sig_list_to_mask(all_masks_list[di[0]][itr]),
-                                              bsu.sig_list_to_mask(all_masks_list[di[1]][itr]))
+            sig_diff, diff_map = sig_diffs(lin_data_alt,
+                                           bsu.sig_list_to_mask(all_masks_list[di[0]][itr]),
+                                           bsu.sig_list_to_mask(all_masks_list[di[1]][itr]))
             these_sig_diffs[d_inds] = sig_diff
         aggre_sig_diffs.append(these_sig_diffs)
         med_sig_diffs[itr] = np.median(these_sig_diffs)

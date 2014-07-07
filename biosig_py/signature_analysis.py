@@ -364,7 +364,7 @@ def sig_diffs(lin_data_alt, sig1, sig2, sz_diff=None):
     err = 0
     diff_map = np.zeros(sig_map1.shape)
     
-    # For all the voxels considered biological, check every voxel to see if the 
+    # For all the pixels considered biological, check every pixel to see if the 
     # signature in one image corresponds to what is considered it's twin signature
     # in the second image.  If not, it's pixel is added to the running error total.
     for c_idx in np.arange(np.sum(all_sigs_mask)):
@@ -377,8 +377,8 @@ def sig_diffs(lin_data_alt, sig1, sig2, sz_diff=None):
             diff_map[this_coord] = 2
         else:
             # ...and 1 is considered no error (the signature in the 
-            # voxel in image 1 does not have its corresponding twin
-            # signature in the same voxel in image 2)
+            # pixel in image 1 does not have its corresponding twin
+            # signature in the same pixel in image 2)
             diff_map[this_coord] = 1
             
     return err, diff_map
@@ -430,9 +430,10 @@ def reclass_multi_data(data_sets, xLen=491, yLen=673, max_itr=25, minReassignPix
         if save == True:
             np.save("sig_list_d%s.npy"%d_idx, all_masks)        
 
-    aggre_clust_diffs = []
-    med_clust_diffs = np.zeros(max_itr)
-    for itr in np.arange(max_itr):   
+    aggre_sig_diffs = []
+    med_sig_diffs = np.zeros(max_itr)
+    for itr in np.arange(max_itr):
+        these_sig_diffs = np.zeros(bsu.nchoosek(len(data_sets),2))
         for d_inds, di in enumerate(itertools.combinations(np.arange(len(data_sets)), 2)):
             # Find the cluster differences between mask lists from different data sets
             # at the same iteration of reassignment.
@@ -450,20 +451,16 @@ def reclass_multi_data(data_sets, xLen=491, yLen=673, max_itr=25, minReassignPix
                                                                         d_inds+1, bsu.nchoosek(len(data_sets),2),(t2-t1)/60., units))
             sys.stdout.flush()
             
-            clust_diffs, _ = ca.clust_diff(bsu.sig_list_to_mask(all_masks_list[di[0]][itr]),
-                                           bsu.sig_list_to_mask(all_masks_list[di[1]][itr]),
-                                           lin_data_alt)
-            if d_inds == 0:
-                # Initialize the array
-                clust_diffs_arr = clust_diffs
-            else:
-                clust_diffs_arr = np.concatenate((clust_diffs_arr, clust_diffs))
+            sig_diff, diff_map = ca.sig_diffs(lin_data_alt,
+                                              bsu.sig_list_to_mask(all_masks_list[di[0]][itr]),
+                                              bsu.sig_list_to_mask(all_masks_list[di[1]][itr]))
+            these_sig_diffs[d_inds] = sig_diff
+        aggre_sig_diffs.append(these_sig_diffs)
+        med_sig_diffs[itr] = np.median(these_sig_diffs)
         
-    # Save the cluster differences and their medians.
-    aggre_clust_diffs.append(clust_diffs_arr)
-    med_clust_diffs[itr] = np.median(clust_diffs_arr)
+    # Save the signature errors differences and their medians.
     if save == True:
-        np.save("aggre_clust_diffs.npy", aggre_clust_diffs)
-        np.save("med_clust_diffs.npy", med_clust_diffs)
+        np.save("aggre_sig_diffs.npy", aggre_sig_diffs)
+        np.save("med_sig_diffs.npy", med_sig_diffs)
     
-    return all_masks_list, aggre_clust_diffs, med_clust_diffs
+    return all_masks_list, aggre_sig_diffs, med_sig_diffs

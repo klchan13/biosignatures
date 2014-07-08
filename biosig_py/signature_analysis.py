@@ -275,7 +275,7 @@ def twin_sigs(lin_data_alt, sig1, sig2, sz_diff=None):
     # their corresponding correlation.  This can result in two different
     # signatures having the same twin signatures though which is not
     # physically possible.
-    cc_arr, sim_sig, orig_less_sigs_idx = sig_reliability(lin_data_alt,
+    cc_arr, sim_sig, less_sigs_idx = sig_reliability(lin_data_alt,
                                                           sig1, sig2,
                                                           sz_diff=sz_diff)
     sig_list = [sig1, sig2]
@@ -294,10 +294,9 @@ def twin_sigs(lin_data_alt, sig1, sig2, sz_diff=None):
     while stats.mode(sim_sig)[1] > 1:
         if count == 0:
             count = count + 1
-            less_sigs_idx = np.copy(orig_less_sigs_idx)
         elif count > 0:
             # Find the reliability and twin sigs of the reduced arrays
-            cc_arr, sim_sig, less_sigs_idx = sig_reliability(lin_data_alt,
+            cc_arr, sim_sig, _ = sig_reliability(lin_data_alt,
                                                              new_sig_list1,
                                                              new_sig_list2,
                                                              sz_diff=sz_diff)
@@ -332,22 +331,19 @@ def twin_sigs(lin_data_alt, sig1, sig2, sz_diff=None):
     
     # Add the rest of the signatures that don't have duplicates
     # within sim_sig to the twin sig array.
-    if count == 0: # This means there were no twin sigs to begin with
-        less_sigs_idx = np.copy(orig_less_sigs_idx)
-        idx = None
-    else:
+    if count != 0:
         cc_arr, sim_sig, _ = sig_reliability(lin_data_alt, new_sig_list1,
                                          new_sig_list2, sz_diff=sz_diff)
-        idx = sim_sig.astype(int)
+        more_inds_mask[sim_sig.astype(int)] = 0
         
     twin_sigs.append(np.concatenate((np.where(less_inds_mask)[0][None],
-                                     np.squeeze(np.where(more_inds_mask)
-                                                      [0][idx])[None])))
+                                     np.where(more_inds_mask)[0][None])))
+                                     
     cc_twins.append(cc_arr)
     cc_twins_arr = np.concatenate(cc_twins)
     twin_sigs_arr = np.concatenate(twin_sigs, -1)
     
-    return cc_twins_arr, twin_sigs_arr, orig_less_sigs_idx
+    return cc_twins_arr, twin_sigs_arr, less_sigs_idx
     
 def sig_diffs(lin_data_alt, sig1, sig2, sz_diff=None):
     """

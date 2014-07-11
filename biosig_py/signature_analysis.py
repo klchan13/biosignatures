@@ -285,9 +285,9 @@ def twin_sigs(lin_data_alt, sig1, sig2, sz_diff=None):
     # Prepare a mask the length of both original signatures for
     # tracking purposes.
     more_inds_mask = np.ones(len(np.arange(len(sig_list[
-                               1-orig_less_sigs_idx]))))
+                               1-less_sigs_idx]))))
     less_inds_mask = np.ones(len(np.copy(np.arange(len(sig_list[
-                                        orig_less_sigs_idx])))))
+                                        less_sigs_idx])))))
     
     # Run this loop as long as there are no more repeats of signatures
     # of the similar signatures array.
@@ -331,13 +331,16 @@ def twin_sigs(lin_data_alt, sig1, sig2, sz_diff=None):
     
     # Add the rest of the signatures that don't have duplicates
     # within sim_sig to the twin sig array.
-    if count != 0:
+    if count == 0: # This means there were no twin sigs to begin with
+        idx = None
+    else:
         cc_arr, sim_sig, _ = sig_reliability(lin_data_alt, new_sig_list1,
                                          new_sig_list2, sz_diff=sz_diff)
-        more_inds_mask[sim_sig.astype(int)] = 0
+        idx = sim_sig.astype(int)
         
     twin_sigs.append(np.concatenate((np.where(less_inds_mask)[0][None],
-                                     np.where(more_inds_mask)[0][None])))
+                                     np.squeeze(np.where(more_inds_mask)
+                                                      [0][idx])[None])))
                                      
     cc_twins.append(cc_arr)
     cc_twins_arr = np.concatenate(cc_twins)

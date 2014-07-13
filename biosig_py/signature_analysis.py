@@ -348,17 +348,33 @@ def twin_sigs(lin_data_alt, sig1, sig2, sz_diff=None):
     
     return cc_twins_arr, twin_sigs_arr, less_sigs_idx
     
-def sig_diffs(lin_data_alt, sig1, sig2, sz_diff=None):
+def sig_diffs(lin_data_alt, sig1, sig2, sig3=None, sz_diff=None):
     """
     Error metric of signatures groups found using different signature
     classification algorithms.
     """
-    sig_map1 = bsu.signature_map(sig1)
-    sig_map2 = bsu.signature_map(sig2)
+    sig_map1, non_sigs1 = bsu.signature_map(sig1)
+    sig_map2, non_sigs2 = bsu.signature_map(sig2)
+    
+    uniq_sigs1 = np.unique(sig1[0])
+    uniq_sigs2 = np.unique(sig2[0])
+    
+    # Reduce the signature list to the real signatures and change from a list
+    # to a mask
+    if (uniq_sigs1[0] != 0) & (uniq_sigs1[1] != 1):
+        sig1 = bsu.sig_list_to_mask(bsu.reduce_sig_list(sig1))
+                
+    if (uniq_sigs2[0] != 0) & (uniq_sigs2[1] != 1):
+        sig2 = bsu.sig_list_to_mask(bsu.reduce_sig_list(sig2))
+        
     cc_twins, twin_sigs_fin, less_sigs_idx = twin_sigs(lin_data_alt, sig1, sig2)
     sig_map_list = [sig_map1, sig_map2]
     
-    all_sigs_mask = bsu.all_sig_mask(sig1)
+    if sig3 == None:
+        all_sigs_mask = bsu.all_sig_mask(sig1)
+    else:
+        all_sigs_mask = bsu.all_sig_mask(sig3)
+  
     coords = np.where(all_sigs_mask)
     err = 0
     diff_map = np.zeros(sig_map1.shape)
@@ -380,7 +396,16 @@ def sig_diffs(lin_data_alt, sig1, sig2, sz_diff=None):
             # signature in the same pixel in image 2)
             diff_map[this_coord] = 1
             
-    return err, diff_map
+    # Extra error is where both images have unclassified pixels
+    if (non_sigs1 == True) & (non_sigs2 == True):
+        where_extra_err = np.where((sig_map1 == np.max(sig_map1)) &
+                                   (sig_map2 == np.max(sig_map2)))
+        extra_err = len(where_extra_err[0])
+        diff_map[where_extra_err] = 2
+    else:
+        extra_err = 0 
+        
+    return err + extra_err, diff_map
 
 def reclass_multi_data(data_sets, xLen=491, yLen=673, max_itr=25, minReassignPix=10, save=True):
     """

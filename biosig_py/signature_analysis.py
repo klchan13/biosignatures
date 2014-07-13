@@ -332,15 +332,15 @@ def twin_sigs(lin_data_alt, sig1, sig2, sz_diff=None):
     # Add the rest of the signatures that don't have duplicates
     # within sim_sig to the twin sig array.
     if count == 0: # This means there were no twin sigs to begin with
-        idx = None
+        mor_sigs = sim_sig.astype(int)[None]
     else:
         cc_arr, sim_sig, _ = sig_reliability(lin_data_alt, new_sig_list1,
                                          new_sig_list2, sz_diff=sz_diff)
-        idx = sim_sig.astype(int)
-        
+        mor_sigs = np.squeeze(np.where(more_inds_mask)[0]
+                             [sim_sig.astype(int)])[None]
+
     twin_sigs.append(np.concatenate((np.where(less_inds_mask)[0][None],
-                                     np.squeeze(np.where(more_inds_mask)
-                                                      [0][idx])[None])))
+                                     mor_sigs)))
                                      
     cc_twins.append(cc_arr)
     cc_twins_arr = np.concatenate(cc_twins)

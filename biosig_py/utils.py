@@ -36,8 +36,8 @@ def signature_map(sigs, xLen=491, yLen=673):
         # If there is only one pixel, give them the idx
         # of maximum number of real signatures.
         if np.shape(np.squeeze(sigs[sig_idx])):
-            sig_map[sig_inds] = sig_idx+1#count + 1
-            #count = count + 1
+            sig_map[sig_inds] = count + 1
+            count = count + 1
         else:
             sig_map[sig_inds] = len(np.where(big_sigs)[0])
     
